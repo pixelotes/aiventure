@@ -1,0 +1,871 @@
+{
+  "session": {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "session_name": "The Locket of the Isles",
+    "player_id": "3c4d5e6f-7a8b-4c9d-0e1f-2a3b4c5d6e7f",
+    "world": {
+      "id": "d1b2c3d4-e5f6-4890-8234-567890abcdef",
+      "name": "The Sundered Isles",
+      "description": "A chain of rugged, windswept islands shrouded in mist and ancient secrets.",
+      "short_description": "A misty, rugged archipelago.",
+      "location_type": "world",
+      "coordinates": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "parent_id": null,
+      "connections": [],
+      "tags": [
+        "islands",
+        "nautical",
+        "mystery"
+      ],
+      "is_discovered": true,
+      "visit_count": 1,
+      "created_at": "2025-08-12T21:25:00",
+      "last_visited": "2025-08-12T21:25:00",
+      "atmosphere": "Salty sea air and a constant sense of isolation.",
+      "notable_features": [],
+      "items": [],
+      "ambient_sounds": [],
+      "ambient_smells": [],
+      "light_level": 100,
+      "temperature": "moderate",
+      "weather": "overcast",
+      "theme": "medieval_fantasy",
+      "lore_summary": "Once a single continent, a magical cataclysm shattered the land into countless islands, leaving ruins and treasures scattered across the sea.",
+      "key_npcs": [],
+      "main_questlines": [],
+      "world_events": [],
+      "time_period": "medieval",
+      "magic_system": "Elemental and Runic",
+      "technology_level": "medieval"
+    },
+    "game_time": {
+      "day": 1,
+      "hour": 10,
+      "minute": 40,
+      "time_of_day": "morning",
+      "season": "autumn",
+      "year": 142
+    },
+    "player_character": {
+      "id": "3c4d5e6f-7a8b-4c9d-0e1f-2a3b4c5d6e7f",
+      "name": "Kaelan",
+      "character_type": "player",
+      "race": "Human",
+      "character_class": "ranger",
+      "level": 1,
+      "experience": 50,
+      "description": "A quiet ranger with sharp eyes, searching for a new purpose among the isles.",
+      "age": 28,
+      "height": "tall",
+      "build": "lean",
+      "hair_color": "dark brown",
+      "eye_color": "grey",
+      "distinctive_features": [
+        "A faint scar on his left cheek"
+      ],
+      "stats": {
+        "strength": 12,
+        "dexterity": 16,
+        "constitution": 14,
+        "intelligence": 10,
+        "wisdom": 14,
+        "charisma": 10,
+        "health": 100,
+        "max_health": 100,
+        "mana": 50,
+        "max_mana": 50,
+        "stamina": 100,
+        "max_stamina": 100,
+        "armor_class": 13,
+        "attack_bonus": 3,
+        "damage_bonus": 1
+      },
+      "inventory": [
+        "5e6f7a8b-9c0d-4e1f-2a3b-4c5d6e7f8a9b",
+        "6f7a8b9c-0d1e-4f2a-3b4c-5d6e7f8a9b0c",
+        "ddeeff00-1122-4455-8899-aabbccddeeff",
+        "ffeeddcc-bbaa-4433-8877-665544332211",
+        "3eca7d6b-91bb-417a-8afd-da397c4593fb"
+      ],
+      "equipped_items": {},
+      "currency": {
+        "gold": 5,
+        "silver": 20,
+        "copper": 100
+      },
+      "current_location_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "previous_location_id": "8c9d0e1f-2a3b-4c5d-8c9d-0e1f2a3b4c5d",
+      "personality_traits": [
+        "observant",
+        "cautious",
+        "resourceful"
+      ],
+      "alignment": "neutral_good",
+      "motivation": "To map the uncharted islands.",
+      "fears": [],
+      "likes": [],
+      "dislikes": [],
+      "relationships": {},
+      "faction_standings": {},
+      "conditions": [],
+      "temporary_effects": [],
+      "created_at": "2025-08-12T21:25:00",
+      "last_seen": null,
+      "player_id": "3c4d5e6f-7a8b-4c9d-0e1f-2a3b4c5d6e7f",
+      "play_time": 0,
+      "deaths": 0,
+      "quests_completed": 0,
+      "locations_discovered": 1,
+      "completed_quests": [],
+      "active_quests": [
+        "7a8b9c0d-1e2f-4a3b-4c5d-6e7f8a9b0c1d"
+      ],
+      "failed_quests": [],
+      "discovered_locations": [
+        "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+      ],
+      "known_npcs": [
+        "4d5e6f7a-8b9c-4d0e-1f2a-3b4c5d6e7f8a"
+      ],
+      "major_decisions": [],
+      "reputation_modifiers": {}
+    },
+    "world_grid": {
+      "width": 10,
+      "height": 10,
+      "grid": [
+        [
+          "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+          "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "9d0e1f2a-3b4c-4d5e-9d0e-1f2a3b4c5d6e",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          "8c9d0e1f-2a3b-4c5d-8c9d-0e1f2a3b4c5d",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      ]
+    },
+    "created_at": "2025-08-12T21:25:00",
+    "last_played": "2025-08-13T11:00:00"
+  },
+  "locations": {
+    "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d": {
+      "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "name": "Whispering Beach",
+      "description": "A long stretch of grey sand littered with driftwood and smooth stones. The air is heavy with the smell of salt and damp earth.",
+      "short_description": "A grey, sandy beach.",
+      "location_type": "location",
+      "coordinates": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "parent_id": null,
+      "connections": [
+        {
+          "target_location_id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+          "direction": "east",
+          "description": "A path leads east towards a dark cave entrance.",
+          "is_visible": true,
+          "is_passable": true,
+          "requirements": [],
+          "travel_time": 5
+        },
+        {
+          "target_location_id": "8c9d0e1f-2a3b-4c5d-8c9d-0e1f2a3b4c5d",
+          "direction": "west",
+          "description": "A steep trail climbs up a rocky headland to the west.",
+          "is_visible": true,
+          "is_passable": true,
+          "requirements": [],
+          "travel_time": 10
+        },
+        {
+          "target_location_id": "9d0e1f2a-3b4c-4d5e-9d0e-1f2a3b4c5d6e",
+          "direction": "south",
+          "description": "A muddy trail disappears into a salt marsh to the south.",
+          "is_visible": true,
+          "is_passable": true,
+          "requirements": [],
+          "travel_time": 5
+        }
+      ],
+      "tags": [
+        "beach",
+        "starting_area"
+      ],
+      "is_discovered": true,
+      "visit_count": 6,
+      "created_at": "2025-08-12T21:25:10",
+      "last_visited": "2025-08-14T01:43:52.907763",
+      "atmosphere": "Lonely and melancholic.",
+      "notable_features": [
+        {
+          "id": "c1a9c8b7-6d5e-4f4b-8a3c-2b1a0f9e8d7c",
+          "name": "A large, gnarled piece of driftwood shaped like a serpent.",
+          "detailed_description": null,
+          "contained_items": []
+        }
+      ],
+      "items": [],
+      "ambient_sounds": [
+        "The gentle lapping of waves.",
+        "The cry of a distant gull."
+      ],
+      "ambient_smells": [
+        "Salt",
+        "seaweed"
+      ],
+      "light_level": 90,
+      "temperature": "cool",
+      "weather": "overcast"
+    },
+    "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e": {
+      "id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Tide-Worn Cave",
+      "description": "The air inside this cave is cool and damp, and the sound of dripping water echoes off the slick, dark walls. A faint, salty breeze blows from the west.",
+      "short_description": "A cool, damp cave.",
+      "location_type": "location",
+      "coordinates": {
+        "x": 1,
+        "y": 0,
+        "z": 0
+      },
+      "parent_id": null,
+      "connections": [
+        {
+          "target_location_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+          "direction": "west",
+          "description": "The cave entrance leads back out to the beach.",
+          "is_visible": true,
+          "is_passable": true,
+          "requirements": [],
+          "travel_time": 5
+        }
+      ],
+      "tags": [
+        "cave",
+        "dark"
+      ],
+      "is_discovered": false,
+      "visit_count": 2,
+      "created_at": "2025-08-12T21:25:15",
+      "last_visited": "2025-08-13T23:49:57.765785",
+      "atmosphere": "Eerie and silent, save for dripping water.",
+      "notable_features": [
+        {
+          "id": "d2b8a7c6-5e4d-4f3b-8a2c-1b0a9f8e7d6c",
+          "name": "Strange runes are faintly carved into the far wall.",
+          "detailed_description": null,
+          "contained_items": []
+        },
+        {
+          "id": "e3c7b6a5-4d3c-4f2b-8a1c-0b9a8f7e6d5b",
+          "name": "A small, saltwater pool bubbles in a corner.",
+          "detailed_description": null,
+          "contained_items": []
+        }
+      ],
+      "items": [],
+      "ambient_sounds": [
+        "Dripping water."
+      ],
+      "ambient_smells": [
+        "Damp stone",
+        "brine"
+      ],
+      "light_level": 20,
+      "temperature": "cold",
+      "weather": null
+    },
+    "8c9d0e1f-2a3b-4c5d-8c9d-0e1f2a3b4c5d": {
+      "id": "8c9d0e1f-2a3b-4c5d-8c9d-0e1f2a3b4c5d",
+      "name": "Craggy Headland",
+      "description": "You stand on a rocky outcrop high above the churning sea below. The wind is fierce here, whipping spray into your face. A steep trail leads back east to the beach.",
+      "short_description": "A windy, rocky headland.",
+      "location_type": "location",
+      "coordinates": {
+        "x": -1,
+        "y": 0,
+        "z": 0
+      },
+      "parent_id": null,
+      "connections": [
+        {
+          "target_location_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+          "direction": "east",
+          "description": "A steep trail leads down to the east.",
+          "is_visible": true,
+          "is_passable": true,
+          "requirements": [],
+          "travel_time": 10
+        }
+      ],
+      "tags": [
+        "cliff",
+        "windy"
+      ],
+      "is_discovered": false,
+      "visit_count": 2,
+      "created_at": "2025-08-13T00:22:00",
+      "last_visited": "2025-08-13T23:50:46.306793",
+      "atmosphere": "Exposed and windswept.",
+      "notable_features": [
+        {
+          "id": "f4d6c5b4-3a2b-4f1a-8a0c-9b8a7f6e5d4c",
+          "name": "A lone, twisted tree clinging to the cliff edge.",
+          "detailed_description": "The towering redwood stood out against the vast sea below, its gnarled branches reaching out towards the sky like ancient arms. The leaves rustled gently in the wind, a rhythmic hum that seemed to echo through the still air. The bark was rough and cracked, revealing ancient scars that appeared to be centuries old. A small hole near the base of the tree allowed the occasional spray of saltwater to seep out, creating a mesmerizing display of water droplets shimmering in the sunlight. The leaves above the hole were covered with moss and lichen, providing a dense green carpet beneath the canopy. The trunk of the tree was thick and sturdy, standing tall against the ever-changing landscape below. Its roots seemed to reach deep into the earth, anchoring it firmly to the cliff edge. As you walked up the steep trail, you could hear the sound of the wind blowing through the trees, carrying the scent of pine needles and damp earth into your lungs. The air was crisp and cool, a refreshing contrast to the salty taste of the ocean below.",
+          "contained_items": []
+        }
+      ],
+      "items": [
+        "5646772a-91e8-4037-a797-59779596dc5e"
+      ],
+      "ambient_sounds": [
+        "Howling wind",
+        "Crashing waves below."
+      ],
+      "ambient_smells": [
+        "Salty spray"
+      ],
+      "light_level": 100,
+      "temperature": "cool",
+      "weather": "windy"
+    },
+    "9d0e1f2a-3b4c-4d5e-9d0e-1f2a3b4c5d6e": {
+      "id": "9d0e1f2a-3b4c-4d5e-9d0e-1f2a3b4c5d6e",
+      "name": "Salt-Marsh Trail",
+      "description": "A muddy but clear trail winds through a patch of salt marsh. Strange, hardy plants grow in clumps, and the air is thick with the smell of decay and brine. The trail leads north.",
+      "short_description": "A muddy salt marsh.",
+      "location_type": "location",
+      "coordinates": {
+        "x": 0,
+        "y": 1,
+        "z": 0
+      },
+      "parent_id": null,
+      "connections": [
+        {
+          "target_location_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+          "direction": "north",
+          "description": "The trail leads north back to the beach.",
+          "is_visible": true,
+          "is_passable": true,
+          "requirements": [],
+          "travel_time": 5
+        }
+      ],
+      "tags": [
+        "marsh",
+        "wetland"
+      ],
+      "is_discovered": false,
+      "visit_count": 1,
+      "created_at": "2025-08-13T00:23:00",
+      "last_visited": "2025-08-13T23:50:14.561608",
+      "atmosphere": "Humid and quiet.",
+      "notable_features": [
+        {
+          "id": "a5b4c3d2-e1f0-4a9b-8c7d-6e5f4a3b2c1d",
+          "name": "A patch of vibrant purple flowers.",
+          "detailed_description": null,
+          "contained_items": []
+        }
+      ],
+      "items": [],
+      "ambient_sounds": [
+        "The buzzing of insects",
+        "The squelch of mud."
+      ],
+      "ambient_smells": [
+        "Decaying plants",
+        "Brackish water"
+      ],
+      "light_level": 80,
+      "temperature": "moderate",
+      "weather": "calm"
+    }
+  },
+  "characters": {
+    "3c4d5e6f-7a8b-4c9d-0e1f-2a3b4c5d6e7f": {
+      "id": "3c4d5e6f-7a8b-4c9d-0e1f-2a3b4c5d6e7f",
+      "name": "Kaelan",
+      "character_type": "player",
+      "race": "Human",
+      "character_class": "ranger",
+      "level": 1,
+      "experience": 50,
+      "description": "A quiet ranger with sharp eyes, searching for a new purpose among the isles.",
+      "age": 28,
+      "height": "tall",
+      "build": "lean",
+      "hair_color": "dark brown",
+      "eye_color": "grey",
+      "distinctive_features": [
+        "A faint scar on his left cheek"
+      ],
+      "stats": {
+        "strength": 12,
+        "dexterity": 16,
+        "constitution": 14,
+        "intelligence": 10,
+        "wisdom": 14,
+        "charisma": 10,
+        "health": 100,
+        "max_health": 100,
+        "mana": 50,
+        "max_mana": 50,
+        "stamina": 100,
+        "max_stamina": 100,
+        "armor_class": 13,
+        "attack_bonus": 3,
+        "damage_bonus": 1
+      },
+      "inventory": [
+        "5e6f7a8b-9c0d-4e1f-2a3b-4c5d6e7f8a9b",
+        "6f7a8b9c-0d1e-4f2a-3b4c-5d6e7f8a9b0c"
+      ],
+      "equipped_items": {},
+      "currency": {
+        "gold": 5,
+        "silver": 20,
+        "copper": 100
+      },
+      "current_location_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "previous_location_id": null,
+      "personality_traits": [
+        "observant",
+        "cautious",
+        "resourceful"
+      ],
+      "alignment": "neutral_good",
+      "motivation": "To map the uncharted islands.",
+      "fears": [],
+      "likes": [],
+      "dislikes": [],
+      "relationships": {},
+      "faction_standings": {},
+      "conditions": [],
+      "temporary_effects": [],
+      "created_at": "2025-08-12T21:25:00",
+      "last_seen": null
+    },
+    "4d5e6f7a-8b9c-4d0e-1f2a-3b4c5d6e7f8a": {
+      "id": "4d5e6f7a-8b9c-4d0e-1f2a-3b4c5d6e7f8a",
+      "name": "Old Man Hemlock",
+      "character_type": "npc",
+      "race": "Human",
+      "character_class": "commoner",
+      "level": 1,
+      "experience": 0,
+      "description": "A weathered old man with a long white beard, constantly mending a fishing net.",
+      "age": 78,
+      "height": "average",
+      "build": "frail",
+      "hair_color": "white",
+      "eye_color": "pale blue",
+      "distinctive_features": [],
+      "stats": {
+        "strength": 6,
+        "dexterity": 8,
+        "constitution": 8,
+        "intelligence": 12,
+        "wisdom": 15,
+        "charisma": 11,
+        "health": 30,
+        "max_health": 30,
+        "mana": 0,
+        "max_mana": 0,
+        "stamina": 40,
+        "max_stamina": 40,
+        "armor_class": 10,
+        "attack_bonus": 0,
+        "damage_bonus": 0
+      },
+      "inventory": [],
+      "equipped_items": {},
+      "currency": {
+        "copper": 42
+      },
+      "current_location_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "previous_location_id": null,
+      "personality_traits": [
+        "gruff",
+        "forgetful",
+        "surprisingly knowledgeable"
+      ],
+      "alignment": "neutral",
+      "motivation": "To live out his days in peace.",
+      "fears": [
+        "The deep sea"
+      ],
+      "likes": [
+        "Warm stew",
+        "a sharp knife"
+      ],
+      "dislikes": [
+        "Storms",
+        "loud noises"
+      ],
+      "relationships": {},
+      "faction_standings": {},
+      "conditions": [],
+      "temporary_effects": [],
+      "created_at": "2025-08-12T21:25:20",
+      "last_seen": null
+    }
+  },
+  "items": {
+    "5e6f7a8b-9c0d-4e1f-2a3b-4c5d6e7f8a9b": {
+      "id": "5e6f7a8b-9c0d-4e1f-2a3b-4c5d6e7f8a9b",
+      "name": "Worn Leather Pack",
+      "description": "A sturdy but well-used leather backpack, perfect for carrying supplies.",
+      "item_type": "container",
+      "rarity": "common",
+      "weight": 2.0,
+      "value": 5,
+      "durability": null,
+      "max_durability": null,
+      "stackable": false,
+      "stack_size": 1,
+      "equipment_slot": "back",
+      "stat_modifiers": {},
+      "magical": false,
+      "cursed": false,
+      "enchantments": [],
+      "special_abilities": [],
+      "consumable": false,
+      "use_effects": [],
+      "charges": null,
+      "max_charges": null,
+      "lore_text": "",
+      "creator": null,
+      "age": null,
+      "created_at": "2025-08-12T21:25:25",
+      "self_use_effect_description": null,
+      "interactions": {},
+      "contained_items": [],
+      "current_stack_size": 1
+    },
+    "6f7a8b9c-0d1e-4f2a-3b4c-5d6e7f8a9b0c": {
+      "id": "6f7a8b9c-0d1e-4f2a-3b4c-5d6e7f8a9b0c",
+      "name": "Rusty Dagger",
+      "description": "A simple iron dagger, pitted with rust but still sharp enough to be useful.",
+      "item_type": "weapon",
+      "rarity": "common",
+      "weight": 1.0,
+      "value": 1,
+      "durability": 50,
+      "max_durability": 50,
+      "stackable": false,
+      "stack_size": 1,
+      "equipment_slot": "main_hand",
+      "stat_modifiers": {},
+      "magical": false,
+      "cursed": false,
+      "enchantments": [],
+      "special_abilities": [],
+      "consumable": false,
+      "use_effects": [],
+      "charges": null,
+      "max_charges": null,
+      "lore_text": "",
+      "creator": null,
+      "age": null,
+      "created_at": "2025-08-12T21:25:30",
+      "self_use_effect_description": null,
+      "interactions": {},
+      "contained_items": [],
+      "current_stack_size": 1
+    },
+    "ddeeff00-1122-4455-8899-aabbccddeeff": {
+      "id": "ddeeff00-1122-4455-8899-aabbccddeeff",
+      "name": "Small Rusted Key",
+      "description": "A small, simple key, covered in rust. It looks like it would fit a small lockbox or chest.",
+      "item_type": "key",
+      "rarity": "uncommon",
+      "weight": 0.1,
+      "value": 10,
+      "durability": null,
+      "max_durability": null,
+      "stackable": false,
+      "stack_size": 1,
+      "equipment_slot": null,
+      "stat_modifiers": {},
+      "magical": false,
+      "cursed": false,
+      "enchantments": [],
+      "special_abilities": [],
+      "consumable": false,
+      "use_effects": [],
+      "charges": null,
+      "max_charges": null,
+      "lore_text": "",
+      "creator": null,
+      "age": null,
+      "created_at": "2025-08-13T10:56:00",
+      "self_use_effect_description": null,
+      "interactions": {
+        "11aa22bb-33cc-44dd-88ee-ff9900aabbcc": "You slide the rusted key into the lock. With a stiff turn and a loud *CLICK*, the old iron chest unlocks."
+      },
+      "contained_items": [],
+      "current_stack_size": 1
+    },
+    "ffeeddcc-bbaa-4433-8877-665544332211": {
+      "id": "ffeeddcc-bbaa-4433-8877-665544332211",
+      "name": "Golden Locket",
+      "description": "A beautiful golden locket, shaped like a heart. It feels warm to the touch.",
+      "item_type": "quest_item",
+      "rarity": "rare",
+      "weight": 0.1,
+      "value": 100,
+      "durability": null,
+      "max_durability": null,
+      "stackable": false,
+      "stack_size": 1,
+      "equipment_slot": null,
+      "stat_modifiers": {},
+      "magical": true,
+      "cursed": false,
+      "enchantments": [],
+      "special_abilities": [],
+      "consumable": false,
+      "use_effects": [],
+      "charges": null,
+      "max_charges": null,
+      "lore_text": "A faint inscription on the back reads 'My love, my star.'",
+      "creator": null,
+      "age": "ancient",
+      "created_at": "2025-08-13T10:58:00",
+      "self_use_effect_description": null,
+      "interactions": {},
+      "contained_items": [],
+      "current_stack_size": 1
+    },
+    "3eca7d6b-91bb-417a-8afd-da397c4593fb": {
+      "id": "3eca7d6b-91bb-417a-8afd-da397c4593fb",
+      "name": "Juicy Red Apple",
+      "description": "A crisp, red apple. It looks delicious.",
+      "item_type": "consumable",
+      "rarity": "common",
+      "weight": 0.2,
+      "value": 1,
+      "durability": null,
+      "max_durability": null,
+      "stackable": false,
+      "stack_size": 1,
+      "equipment_slot": null,
+      "stat_modifiers": {},
+      "magical": false,
+      "cursed": false,
+      "enchantments": [],
+      "special_abilities": [],
+      "consumable": true,
+      "use_effects": [],
+      "charges": null,
+      "max_charges": null,
+      "lore_text": "",
+      "creator": null,
+      "age": null,
+      "created_at": "2025-08-13T10:55:00",
+      "self_use_effect_description": "You eat the apple. It's refreshing and restores a small bit of stamina.",
+      "interactions": {},
+      "contained_items": [],
+      "current_stack_size": 1
+    },
+    "5646772a-91e8-4037-a797-59779596dc5e": {
+      "id": "5646772a-91e8-4037-a797-59779596dc5e",
+      "name": "Old Iron Chest",
+      "description": "A heavy iron chest, bound with sturdy-looking bands. It is firmly locked.",
+      "item_type": "container",
+      "rarity": "uncommon",
+      "weight": 15.0,
+      "value": 20,
+      "durability": null,
+      "max_durability": null,
+      "stackable": false,
+      "stack_size": 1,
+      "equipment_slot": null,
+      "stat_modifiers": {},
+      "magical": false,
+      "cursed": false,
+      "enchantments": [],
+      "special_abilities": [],
+      "consumable": false,
+      "use_effects": [],
+      "charges": null,
+      "max_charges": null,
+      "lore_text": "",
+      "creator": null,
+      "age": null,
+      "created_at": "2025-08-13T10:57:00",
+      "self_use_effect_description": null,
+      "interactions": {},
+      "contained_items": [],
+      "current_stack_size": 1
+    }
+  },
+  "quests": {
+    "7a8b9c0d-1e2f-4a3b-4c5d-6e7f8a9b0c1d": {
+      "id": "7a8b9c0d-1e2f-4a3b-4c5d-6e7f8a9b0c1d",
+      "name": "The Lost Locket",
+      "description": "Old Man Hemlock has asked you to find a golden locket that belonged to his late wife. He believes he may have dropped it in the nearby Tide-Worn Cave.",
+      "quest_type": "fetch",
+      "giver_id": "4d5e6f7a-8b9c-4d0e-1f2a-3b4c5d6e7f8a",
+      "start_location_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "level_requirement": 1,
+      "prerequisite_quests": [],
+      "required_items": [],
+      "required_skills": {},
+      "objectives": [
+        {
+          "id": "8b9c0d1e-2f3a-4b4c-5d6e-7f8a9b0c1d2e",
+          "description": "Find the Golden Locket.",
+          "objective_type": "fetch",
+          "target": "Golden Locket",
+          "current_progress": 0,
+          "required_progress": 1,
+          "completed": false,
+          "optional": false
+        }
+      ],
+      "status": "active",
+      "rewards": {
+        "experience": 100,
+        "currency": {
+          "silver": 50
+        },
+        "items": [],
+        "reputation_changes": {}
+      },
+      "auto_complete": false,
+      "turn_in_location_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "turn_in_npc_id": "4d5e6f7a-8b9c-4d0e-1f2a-3b4c5d6e7f8a",
+      "time_limit": null,
+      "repeatable": false,
+      "cooldown_minutes": 0,
+      "story_impact": [],
+      "branching_choices": [],
+      "created_at": "2025-08-12T21:25:35",
+      "started_at": "2025-08-12T21:28:00",
+      "completed_at": null,
+      "target_item_id": null,
+      "location_hint": null
+    }
+  }
+}
