@@ -1,0 +1,6 @@
+__pycache__
+LICENSE
+Dockerfile
+docker-compose.*
+README.md
+*.log
