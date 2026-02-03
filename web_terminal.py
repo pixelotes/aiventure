@@ -57,35 +57,42 @@ class WebTerminalServer:
         if self.process and self.process.isalive():
             self.process.terminate()
             self.process = None
-
     async def broadcast_output(self, output):
         """Append to buffer and send to all connected clients."""
         async with self.lock:
-            self.output_buffer += output
             # Make a copy of clients under the lock to prevent race conditions
             clients_to_send = list(self.clients)
         
         if clients_to_send:
-            message = json.dumps({'type': 'output', 'data': output})
-            await asyncio.gather(*[client.send(message) for client in clients_to_send])
+            if output:
+                async with self.lock:
+                    self.output_buffer += output
+                message = json.dumps({'type': 'output', 'data': output})
+                await asyncio.gather(*[client.send(message) for client in clients_to_send])
 
     async def process_reader(self):
         """The single task that reads from the process and broadcasts output."""
         print("Process reader started.")
-        await self.broadcast_output("Starting AIventure... please wait.\r\n")
-        while self.process and self.process.isalive():
-            try:
-                output = self.process.read_nonblocking(size=1024, timeout=0.1)
-                if output:
-                    await self.broadcast_output(output)
-            except pexpect.TIMEOUT:
-                await asyncio.sleep(0.01)
-            except pexpect.EOF:
-                break
-        
-        await self.broadcast_output('\r\n[Process ended]\r\n')
-        print("Process reader finished.")
-        self.stop_process()
+        while True:
+            await self.broadcast_output("Starting AIventure... please wait.\r\n")
+            if not self.process or not self.process.isalive():
+                if not self.start_process():
+                    await self.broadcast_output("\r\n[Error: Failed to start process]\r\n")
+                    break
+
+            while self.process and self.process.isalive():
+                try:
+                    output = self.process.read_nonblocking(size=1024, timeout=0.1)
+                    if output:
+                        await self.broadcast_output(output)
+                except pexpect.TIMEOUT:
+                    await asyncio.sleep(0.01)
+                except pexpect.EOF:
+                    break
+            
+            await self.broadcast_output('\r\n[Process ended - Restarting in 3s...]\r\n')
+            print("Process ended. Waiting to restart...")
+            await asyncio.sleep(3)
 
     async def handle_websocket(self, websocket):
         """Handle a new websocket connection."""
@@ -120,6 +127,25 @@ class WebTerminalServer:
 
                     if data['type'] == 'input':
                         self.process.send(data['data'])
+                    elif data['type'] == 'autocomplete':
+                        # Use side-channel socket for autocomplete
+                        import socket
+                        try:
+                            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                                s.settimeout(0.2) # Short timeout for UX
+                                s.connect(('127.0.0.1', 9999))
+                                s.sendall(data['data'].encode('utf-8'))
+                                response = s.recv(4096).decode('utf-8')
+                                if response:
+                                    res_data = json.loads(response)
+                                    if 'suggestions' in res_data:
+                                        message = json.dumps({'type': 'autocomplete_results', 'data': res_data['suggestions']})
+                                        await websocket.send(message)
+                        except (socket.timeout, ConnectionRefusedError):
+                            # Silently ignore if autocomplete server is not ready
+                            pass
+                        except Exception as e:
+                            print(f"Autocomplete side-channel error: {e}")
                     elif data['type'] == 'resize':
                         rows = data.get('rows', 24)
                         cols = data.get('cols', 80)
