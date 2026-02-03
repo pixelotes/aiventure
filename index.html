@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,19 +23,21 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
-        html, body {
+
+        html,
+        body {
             height: 100%;
             background-color: #1a1a1a;
             color: #00ff00;
-            font-family: 'Courier New', monospace; /* Default font */
+            font-family: 'Courier New', monospace;
+            /* Default font */
         }
 
         body {
             display: flex;
             flex-direction: column;
         }
-        
+
         /* NEW --- Default body background */
         body {
             background-color: #1a1a1a;
@@ -58,7 +61,7 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+
         h1 {
             font-size: 1.2rem;
             flex-grow: 1;
@@ -77,6 +80,7 @@
             border-radius: 4px;
             margin-right: 10px;
         }
+
         #crtToggle:hover {
             background: #555;
         }
@@ -87,33 +91,39 @@
             overflow: hidden;
             position: relative;
         }
-        
+
         /* Flicker, scanlines, and vignette are only applied in CRT mode */
         .crt-on .terminal-container {
             animation: flicker 0.15s infinite;
         }
-        
+
         .crt-on .terminal-container::before {
             content: " ";
             display: block;
             position: absolute;
-            top: 0; left: 0; bottom: 0; right: 0;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
             z-index: 2;
             background-size: 100% 4px, 3px 100%;
             pointer-events: none;
         }
-        
+
         .crt-on .terminal-container::after {
             content: " ";
             display: block;
             position: absolute;
-            top: 0; left: 0; bottom: 0; right: 0;
-            background: radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.7));
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.7));
             z-index: 3;
             pointer-events: none;
         }
-        
+
         #terminal {
             width: 100%;
             height: 100%;
@@ -122,9 +132,9 @@
         .xterm-viewport {
             background-color: transparent !important;
         }
-        
+
         /* Text glow is only applied in CRT mode */
-        .crt-on .xterm .xterm-rows > div {
+        .crt-on .xterm .xterm-rows>div {
             text-shadow: 0 0 4px var(--crt-glow-color);
         }
 
@@ -135,16 +145,35 @@
             min-width: 120px;
         }
 
-        .status.connected { color: #00ff00; background: #1a4a1a; }
-        .status.disconnected { color: #ff0000; background: #4a1a1a; }
-        .status.connecting { color: #ffff00; background: #4a4a1a; }
+        .status.connected {
+            color: #00ff00;
+            background: #1a4a1a;
+        }
+
+        .status.disconnected {
+            color: #ff0000;
+            background: #4a1a1a;
+        }
+
+        .status.connecting {
+            color: #ffff00;
+            background: #4a4a1a;
+        }
 
         @keyframes flicker {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.95; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.95;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="header">
         <div id="status" class="status connecting">Connecting...</div>
@@ -178,6 +207,7 @@
                 this.term.open(document.getElementById('terminal'));
                 this.fitAddon.fit();
 
+                this.inputBuffer = "";
                 this.setupEventListeners();
                 this.setupCrtToggle(); // NEW --- Initialize the toggle
                 this.connect();
@@ -187,7 +217,7 @@
             setupCrtToggle() {
                 const crtToggleButton = document.getElementById('crtToggle');
                 const body = document.body;
-                
+
                 // Function to update button text
                 const updateButtonText = () => {
                     const isCrtOn = body.classList.contains('crt-on');
@@ -214,10 +244,28 @@
 
                 this.term.onData(data => {
                     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        // Handle Tab key
+                        if (data === '\t') {
+                            const input = this.getCurrentInput();
+                            this.ws.send(JSON.stringify({ type: 'autocomplete', data: input }));
+                            return;
+                        }
+
+                        // Track input buffer for autocomplete (legacy fallback and Enter reset)
+                        if (data === '\r' || data === '\n') {
+                            this.inputBuffer = "";
+                        } else if (data === '\x7f' || data === '\b') { // Backspace
+                            if (this.inputBuffer.length > 0) {
+                                this.inputBuffer = this.inputBuffer.slice(0, -1);
+                            }
+                        } else if (data.length === 1 && data.charCodeAt(0) >= 32 && data.charCodeAt(0) <= 126) {
+                            this.inputBuffer += data;
+                        }
+
                         this.ws.send(JSON.stringify({ type: 'input', data: data }));
                     }
                 });
-                
+
                 this.term.onResize(({ cols, rows }) => {
                     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                         this.ws.send(JSON.stringify({ type: 'resize', cols: cols, rows: rows }));
@@ -228,9 +276,9 @@
             connect() {
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsUrl = `${protocol}//${window.location.hostname}:8765`;
-                
+
                 this.updateStatus('connecting', 'Connecting...');
-                
+
                 try {
                     this.ws = new WebSocket(wsUrl);
 
@@ -239,7 +287,7 @@
                         this.reconnectAttempts = 0;
                         this.term.focus();
                         this.term.onResize(({ cols, rows }) => {
-                           this.ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+                            this.ws.send(JSON.stringify({ type: 'resize', cols, rows }));
                         });
                     };
 
@@ -248,8 +296,14 @@
                             const message = JSON.parse(event.data);
                             if (message.type === 'output') {
                                 this.term.write(message.data);
+                                // If output is received, we might need to reset buffer if it's a prompt
+                                if (message.data.includes('\n> ')) {
+                                    this.inputBuffer = "";
+                                }
                             } else if (message.type === 'error') {
                                 this.term.write(`\r\n[ERROR] ${message.data}\r\n`);
+                            } else if (message.type === 'autocomplete_results') {
+                                this.handleAutocompleteResults(message.data);
                             }
                         } catch (e) {
                             console.error('Failed to parse message:', e);
@@ -271,7 +325,7 @@
                     this.scheduleReconnect();
                 }
             }
-            
+
             updateStatus(className, text) {
                 this.status.className = `status ${className}`;
                 this.status.textContent = text;
@@ -281,16 +335,56 @@
                 if (this.reconnectAttempts < this.maxReconnectAttempts) {
                     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
                     this.reconnectAttempts++;
-                    this.updateStatus('connecting', `Reconnecting in ${delay/1000}s...`);
-                    
+                    this.updateStatus('connecting', `Reconnecting in ${delay / 1000}s...`);
+
                     setTimeout(() => this.connect(), delay);
                 } else {
                     this.updateStatus('disconnected', 'Connection failed. Please reload the page.');
                 }
+            }
+
+            handleAutocompleteResults(suggestions) {
+                if (!suggestions || suggestions.length === 0) return;
+
+                if (suggestions.length === 1) {
+                    // Only one suggestion, complete it
+                    const suggestion = suggestions[0];
+                    const input = this.getCurrentInput();
+                    const parts = input.split(' ');
+                    const lastPart = parts[parts.length - 1];
+                    const completion = suggestion.slice(lastPart.length);
+
+                    if (completion.length > 0) {
+                        // DO NOT write locally, let the server echo it to avoid double characters
+                        // this.term.write(completion); 
+                        this.inputBuffer = input + completion; // Keep buffer in sync
+                        this.ws.send(JSON.stringify({ type: 'input', data: completion }));
+                    }
+                } else {
+                    // Multiple suggestions, show them
+                    const input = this.getCurrentInput();
+                    this.term.write('\r\n' + suggestions.join('  ') + '\r\n> ' + input);
+                    this.inputBuffer = input;
+                }
+            }
+
+            getCurrentInput() {
+                // More robust way to get current input from terminal buffer
+                const cursorY = this.term.buffer.active.cursorY;
+                const line = this.term.buffer.active.getLine(this.term.buffer.active.baseY + cursorY);
+                if (!line) return this.inputBuffer;
+
+                const lineStr = line.translateToString(true);
+                const promptIndex = lineStr.lastIndexOf('> ');
+                if (promptIndex !== -1) {
+                    return lineStr.substring(promptIndex + 2).trimEnd();
+                }
+                return this.inputBuffer;
             }
         }
 
         window.addEventListener('DOMContentLoaded', () => new WebTerminal());
     </script>
 </body>
+
 </html>

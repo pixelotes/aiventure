@@ -9,9 +9,9 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_reload: bool = False
     
-    # Ollama Configuration
-    ollama_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen2.5-coder:1.5b"
+    # Ollama / LM Studio Configuration
+    ollama_url: str = "http://localhost:1234"
+    ollama_model: str = "ibm/granite-4-h-tiny"
     ollama_timeout: int = 600 # Increased timeout for generation
     
     # Game Configuration
@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     database_url: Optional[str] = None
     
     # Logging
-    log_level: str = "INFO"
+    log_level: str = "ERROR"
     log_file: Optional[Path] = "llm_debug.log"
     
     class Config:
