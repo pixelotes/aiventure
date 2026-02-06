@@ -75,10 +75,6 @@ class LMStudioProvider(AIProvider):
             
             if "choices" in result and len(result["choices"]) > 0:
                 content = result["choices"][0]["message"]["content"]
-                if is_content_generation:
-                    # Use the robust parser for content generation (JSON)
-                    parsed = parse_llm_json(content)
-                    return json.dumps(parsed) if parsed is not None else content
                 return content
             return "The AI is silent."
             

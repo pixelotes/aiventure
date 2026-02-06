@@ -20,7 +20,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 import webbrowser
 
 class WebTerminalServer:
-    def __init__(self, command="python launch.py", port=8080, ws_port=8765):
+    def __init__(self, command="python cli.py", port=8080, ws_port=8765):
         self.command = command
         self.port = port
         self.ws_port = ws_port

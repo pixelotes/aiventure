@@ -197,6 +197,7 @@ class BaseCharacter(BaseModel):
     eye_color: str = "brown"
     distinctive_features: List[str] = Field(default_factory=list)
     stats: CharacterStats = Field(default_factory=CharacterStats)
+    base_stats: CharacterStats = Field(default_factory=CharacterStats)
     inventory: List[UUID] = Field(default_factory=list)
     equipped_items: Dict[str, UUID] = Field(default_factory=dict)
     currency: Dict[str, int] = Field(default_factory=lambda: {"gold": 0, "silver": 0, "copper": 0})

@@ -33,6 +33,7 @@ class GameEngine:
         self.game_state: Optional[CompleteGameState] = None
         self.in_combat = False
         self.combat_opponents: List[BaseCharacter] = []
+        self.pending_messages: List[str] = []
 
     def calculate_equipment_bonuses(self, character: BaseCharacter) -> CharacterStats:
         """Calculate total bonuses from equipped items"""
@@ -50,25 +51,25 @@ class GameEngine:
         return bonuses
     
     def apply_equipment_effects(self, character: BaseCharacter):
-        """Apply equipment bonuses to character stats"""
+        """Apply equipment bonuses to character stats (reads base_stats, writes stats)"""
         if not isinstance(character, (PlayerCharacter, NPC)):
             return
-            
-        base_stats = character.stats
+
+        base = character.base_stats
         bonuses = self.calculate_equipment_bonuses(character)
-        
-        character.stats.strength = max(1, base_stats.strength + bonuses.strength)
-        character.stats.dexterity = max(1, base_stats.dexterity + bonuses.dexterity)
-        character.stats.constitution = max(1, base_stats.constitution + bonuses.constitution)
-        character.stats.intelligence = max(1, base_stats.intelligence + bonuses.intelligence)
-        character.stats.wisdom = max(1, base_stats.wisdom + bonuses.wisdom)
-        character.stats.charisma = max(1, base_stats.charisma + bonuses.charisma)
-        character.stats.armor_class = max(1, base_stats.armor_class + bonuses.armor_class)
-        character.stats.attack_bonus = base_stats.attack_bonus + bonuses.attack_bonus
-        character.stats.damage_bonus = base_stats.damage_bonus + bonuses.damage_bonus
-        
-        character.stats.max_health = max(1, base_stats.max_health + (bonuses.constitution * 5))
-        character.stats.max_mana = max(1, base_stats.max_mana + (bonuses.intelligence * 3))
+
+        character.stats.strength = max(1, base.strength + bonuses.strength)
+        character.stats.dexterity = max(1, base.dexterity + bonuses.dexterity)
+        character.stats.constitution = max(1, base.constitution + bonuses.constitution)
+        character.stats.intelligence = max(1, base.intelligence + bonuses.intelligence)
+        character.stats.wisdom = max(1, base.wisdom + bonuses.wisdom)
+        character.stats.charisma = max(1, base.charisma + bonuses.charisma)
+        character.stats.armor_class = max(1, base.armor_class + bonuses.armor_class)
+        character.stats.attack_bonus = base.attack_bonus + bonuses.attack_bonus
+        character.stats.damage_bonus = base.damage_bonus + bonuses.damage_bonus
+
+        character.stats.max_health = max(1, base.max_health + (bonuses.constitution * 5))
+        character.stats.max_mana = max(1, base.max_mana + (bonuses.intelligence * 3))
     
     def add_item_to_inventory(self, character: BaseCharacter, item: Item, quantity: int = 1) -> str:
         """Add an item to character's inventory, handling stacking"""
@@ -171,11 +172,72 @@ class GameEngine:
             
         return data
 
+    ITEM_CATALOG = [
+        # Weapons
+        {"name": "Iron Sword", "description": "A sturdy iron blade.", "item_type": ItemType.WEAPON, "equipment_slot": "weapon", "stat_modifiers": {"attack_bonus": 2, "damage_bonus": 3}, "value": 25},
+        {"name": "Oak Staff", "description": "A gnarled wooden staff crackling with faint energy.", "item_type": ItemType.WEAPON, "equipment_slot": "weapon", "stat_modifiers": {"intelligence": 2, "attack_bonus": 1}, "value": 20},
+        {"name": "Steel Dagger", "description": "A sharp, lightweight dagger.", "item_type": ItemType.WEAPON, "equipment_slot": "weapon", "stat_modifiers": {"dexterity": 1, "damage_bonus": 2}, "value": 15},
+        {"name": "War Hammer", "description": "A heavy hammer that packs a devastating blow.", "item_type": ItemType.WEAPON, "equipment_slot": "weapon", "stat_modifiers": {"strength": 2, "damage_bonus": 4}, "value": 30},
+        {"name": "Hunting Bow", "description": "A recurve bow suited for both hunting and combat.", "item_type": ItemType.WEAPON, "equipment_slot": "weapon", "stat_modifiers": {"dexterity": 2, "damage_bonus": 2}, "value": 22},
+        # Armor
+        {"name": "Leather Armor", "description": "Light but durable leather protection.", "item_type": ItemType.ARMOR, "equipment_slot": "armor", "stat_modifiers": {"armor_class": 2}, "value": 20},
+        {"name": "Chainmail", "description": "Interlocking metal rings providing solid defense.", "item_type": ItemType.ARMOR, "equipment_slot": "armor", "stat_modifiers": {"armor_class": 4, "dexterity": -1}, "value": 40},
+        {"name": "Mage Robes", "description": "Enchanted robes that enhance magical ability.", "item_type": ItemType.ARMOR, "equipment_slot": "armor", "stat_modifiers": {"armor_class": 1, "intelligence": 2, "max_mana": 10}, "value": 30},
+        # Shields
+        {"name": "Wooden Shield", "description": "A round wooden shield reinforced with iron.", "item_type": ItemType.ARMOR, "equipment_slot": "shield", "stat_modifiers": {"armor_class": 2}, "value": 12},
+        # Consumables
+        {"name": "Health Potion", "description": "A red potion that restores 30 health.", "item_type": ItemType.CONSUMABLE, "consumable": True, "self_use_effect_description": "You drink the potion and feel warmth spread through your body. (+30 HP)", "use_effects": ["heal:30"], "value": 10, "stackable": True, "stack_size": 5},
+        {"name": "Stamina Tonic", "description": "A green tonic that restores 30 stamina.", "item_type": ItemType.CONSUMABLE, "consumable": True, "self_use_effect_description": "You drink the tonic and feel a surge of energy. (+30 Stamina)", "use_effects": ["stamina:30"], "value": 8, "stackable": True, "stack_size": 5},
+        {"name": "Mana Elixir", "description": "A blue elixir that restores 25 mana.", "item_type": ItemType.CONSUMABLE, "consumable": True, "self_use_effect_description": "You drink the elixir and feel your magical reserves replenish. (+25 Mana)", "use_effects": ["mana:25"], "value": 12, "stackable": True, "stack_size": 5},
+    ]
+
+    CLASS_STARTER_GEAR = {
+        CharacterClass.WARRIOR: ["Iron Sword", "Wooden Shield", "Health Potion"],
+        CharacterClass.MAGE: ["Oak Staff", "Mage Robes", "Mana Elixir"],
+        CharacterClass.ROGUE: ["Steel Dagger", "Leather Armor", "Health Potion"],
+        CharacterClass.CLERIC: ["War Hammer", "Leather Armor", "Mana Elixir"],
+        CharacterClass.RANGER: ["Hunting Bow", "Leather Armor", "Health Potion"],
+        CharacterClass.BARD: ["Steel Dagger", "Mage Robes", "Stamina Tonic"],
+        CharacterClass.COMMONER: ["Health Potion"],
+    }
+
+    CLASS_STAT_MODIFIERS = {
+        CharacterClass.WARRIOR: {"strength": 4, "constitution": 3, "max_health": 30, "max_stamina": 20},
+        CharacterClass.MAGE: {"intelligence": 5, "wisdom": 2, "max_mana": 40, "max_health": -10},
+        CharacterClass.ROGUE: {"dexterity": 5, "charisma": 1, "damage_bonus": 2},
+        CharacterClass.CLERIC: {"wisdom": 4, "constitution": 2, "max_mana": 20, "max_health": 10},
+        CharacterClass.RANGER: {"dexterity": 3, "wisdom": 2, "constitution": 2, "max_stamina": 20},
+        CharacterClass.BARD: {"charisma": 5, "dexterity": 2, "intelligence": 1, "max_mana": 15},
+    }
+
+    def _create_catalog_item(self, name: str) -> Optional[Item]:
+        """Create an item from the catalog by name"""
+        template = next((t for t in self.ITEM_CATALOG if t["name"] == name), None)
+        if not template: return None
+        item = Item(**template)
+        self.game_state.items[item.id] = item
+        return item
+
+    def _populate_shop_inventory(self, npc: NPC) -> None:
+        """Give shopkeepers/merchants a starting inventory from the catalog"""
+        if npc.role == NPCRole.SHOPKEEPER:
+            stock = ["Iron Sword", "Leather Armor", "Wooden Shield", "Health Potion", "Stamina Tonic"]
+        elif npc.role == NPCRole.MERCHANT:
+            stock = ["Chainmail", "Mage Robes", "War Hammer", "Hunting Bow", "Health Potion", "Mana Elixir"]
+        else:
+            return
+        for item_name in stock:
+            item = self._create_catalog_item(item_name)
+            if item:
+                npc.shop_inventory.append(item.id)
+
     def _create_services_for_npc(self, npc: NPC) -> None:
         if npc.role == NPCRole.SHOPKEEPER:
             npc.services_offered.append(Service(service_type=ServiceType.BUY_SELL, name="General Goods", description="I buy and sell various items.", cost={"gold": 0}))
+            self._populate_shop_inventory(npc)
         elif npc.role == NPCRole.MERCHANT:
             npc.services_offered.append(Service(service_type=ServiceType.BUY_SELL, name="Trade Goods", description="I deal in fine wares and exotic items.", cost={"gold": 0}))
+            self._populate_shop_inventory(npc)
         elif npc.role == NPCRole.INNKEEPER:
             npc.services_offered.extend([
                 Service(service_type=ServiceType.REST, name="Room for the Night", description="A warm bed and a hot meal.", cost={"gold": 2, "silver": 5}),
@@ -184,7 +246,7 @@ class GameEngine:
         elif npc.role == NPCRole.CRAFTSMAN:
             npc.services_offered.append(Service(service_type=ServiceType.REPAIR, name="Item Repair", description="I can mend your broken equipment.", cost={"gold": 5}))
 
-    async def create_new_game(self, player_name: str, player_id: UUID, session_name: str, model_name: str) -> CompleteGameState:
+    async def create_new_game(self, player_name: str, player_id: UUID, session_name: str, model_name: str, character_class: CharacterClass = CharacterClass.WARRIOR) -> CompleteGameState:
         try:
             print("\n1/3: Conceptualizing the world and its main story...")
             world_prompt = (
@@ -214,9 +276,11 @@ class GameEngine:
             )
             
             # Create three regions: Start, Middle (Gated), End (Goal)
-            r_start = Region(name=f"The {world_data['starter_region_type']}", description="Where your journey begins.", region_type=world_data['starter_region_type'], location_type=LocationType.REGION, short_description="Initial region", tags=["starter"])
+            starter_type = to_str(world_data.get('starter_region_type', 'Wilderness'))
+            goal_type = to_str(world_data.get('goal_region_type', 'Castle'))
+            r_start = Region(name=f"The {starter_type}", description="Where your journey begins.", region_type=starter_type, location_type=LocationType.REGION, short_description="Initial region", tags=["starter"])
             r_mid = Region(name="The Forbidden Boundary", description="A heavily guarded or dangerous zone.", region_type="wilderness", location_type=LocationType.REGION, short_description="A gated passage", tags=["boundary"])
-            r_end = Region(name=f"The {world_data['goal_region_type']}", description="The place of your destiny.", region_type=world_data['goal_region_type'], location_type=LocationType.REGION, short_description="Goal region", tags=["goal"])
+            r_end = Region(name=f"The {goal_type}", description="The place of your destiny.", region_type=goal_type, location_type=LocationType.REGION, short_description="Goal region", tags=["goal"])
             
             # Link regions
             r_start.connections_to_regions[Direction.EAST] = r_mid.id
@@ -240,21 +304,45 @@ class GameEngine:
             start_location_id = start_grid.get_location_id(0, 0) # Top-left corner for now
             
             player_char = PlayerCharacter(
-                name=player_name, 
-                player_id=player_id, 
-                current_location_id=start_location_id, 
-                description=f"{player_name} in {world.name}.", 
+                name=player_name,
+                player_id=player_id,
+                current_location_id=start_location_id,
+                character_class=character_class,
+                description=f"{player_name}, a {character_class.value} in {world.name}.",
                 background_lore=world_data.get('player_background', f"{player_name} is a traveler seeking adventure."),
-                currency={"gold": 50}, 
+                currency={"gold": 50},
                 inventory=[]
             )
+
+            # Apply class stat modifiers
+            for stat, mod in self.CLASS_STAT_MODIFIERS.get(character_class, {}).items():
+                current = getattr(player_char.stats, stat, 0)
+                setattr(player_char.stats, stat, max(1, current + mod))
+            player_char.stats.health = player_char.stats.max_health
+            player_char.stats.mana = player_char.stats.max_mana
+            player_char.stats.stamina = player_char.stats.max_stamina
+            player_char.base_stats = player_char.stats.model_copy()
+
+            # Give starter gear
+            for item_name in self.CLASS_STARTER_GEAR.get(character_class, []):
+                item = self._create_catalog_item(item_name)
+                if item:
+                    player_char.inventory.append(item.id)
+                    if item.equipment_slot and item.equipment_slot not in player_char.equipped_items:
+                        player_char.equipped_items[item.equipment_slot] = item.id
+            self.apply_equipment_effects(player_char)
+
             game_state.characters[player_char.id] = player_char
             session.player_character = player_char
-            
+
+            # Track starting location discovery
+            player_char.discovered_locations.add(start_location_id)
+            player_char.locations_discovered = 1
+
             # Setup Main Quest
             quest = Quest(
-                name=world_data['quest_name'],
-                description=world_data['quest_description'],
+                name=world_data.get('quest_name', 'The Main Quest'),
+                description=world_data.get('quest_description', 'Fulfill your destiny.'),
                 quest_type=QuestType.MAIN_STORY,
                 status=QuestStatus.ACTIVE,
                 objectives=[QuestObjective(description=f"Reach the {r_end.name} and fulfill your destiny.", objective_type="reach_location", target=str(r_end.id))]
@@ -498,6 +586,59 @@ class GameEngine:
         for item_id in list(target.inventory):
             if item_id in self.game_state.items:
                 self.get_current_location().items.append(item_id)
+        # Check for level up
+        lvl_msg = self.check_level_up()
+        if lvl_msg:
+            print(f"\n🎉 {lvl_msg}")
+
+    def check_level_up(self) -> Optional[str]:
+        """Check and apply level-up if enough XP accumulated"""
+        player = self.game_state.session.player_character
+        xp_threshold = player.level * 100
+        if player.experience < xp_threshold:
+            return None
+        player.experience -= xp_threshold
+        player.level += 1
+        # Boost base stats
+        player.base_stats.max_health += 10
+        player.base_stats.max_stamina += 5
+        player.base_stats.max_mana += 5
+        # Class-specific level bonus (smaller than initial)
+        for stat, mod in self.CLASS_STAT_MODIFIERS.get(player.character_class, {}).items():
+            if stat.startswith("max_"): continue  # already handled above
+            current = getattr(player.base_stats, stat, 0)
+            setattr(player.base_stats, stat, current + max(1, mod // 2))
+        # Heal to new max
+        self.apply_equipment_effects(player)
+        player.stats.health = player.stats.max_health
+        player.stats.mana = player.stats.max_mana
+        player.stats.stamina = player.stats.max_stamina
+        return f"LEVEL UP! You are now level {player.level}!"
+
+    def check_player_death(self) -> Optional[str]:
+        """Check if player died and handle respawn"""
+        player = self.game_state.session.player_character
+        if player.stats.health > 0:
+            return None
+        player.deaths += 1
+        # Respawn at starting region (0,0)
+        start_region_id = self.game_state.session.world.starting_region_id
+        start_grid = self.game_state.session.region_grids.get(start_region_id)
+        if start_grid:
+            respawn_loc = start_grid.get_location_id(0, 0)
+            if respawn_loc:
+                player.current_location_id = respawn_loc
+                self.game_state.session.current_region_id = start_region_id
+        # Penalties
+        player.stats.health = player.stats.max_health // 2
+        player.stats.mana = 0
+        player.stats.stamina = player.stats.max_stamina // 2
+        gold_loss = player.currency.get("gold", 0) // 10
+        player.currency["gold"] = max(0, player.currency.get("gold", 0) - gold_loss)
+        # Clear combat
+        self.in_combat = False
+        self.combat_opponents = []
+        return f"YOU DIED! (Death #{player.deaths}) Lost {gold_loss} gold. You awaken weakened..."
 
     async def move_player(self, direction: Direction, model_name: str, confirmed: bool = False) -> Tuple[bool, str]:
         if not self.game_state: return False, "No session"
@@ -548,6 +689,9 @@ class GameEngine:
         pc.previous_location_id, pc.current_location_id = pc.current_location_id, target.id
         target.visit_count += 1
         target.last_visited = datetime.now()
+        if target.id not in pc.discovered_locations:
+            pc.discovered_locations.add(target.id)
+            pc.locations_discovered += 1
         
         # Calculate stamina cost and advance time
         stamina_cost = 5
@@ -591,13 +735,15 @@ class GameEngine:
         player.quests_completed += 1
         q.status, q.completed_at = QuestStatus.TURNED_IN, datetime.now()
         
+        msg = f"Completed {q.name}!"
         if q.rewards:
-            player.stats.experience = getattr(player.stats, 'experience', 0) + q.rewards.experience
-            player.experience = getattr(player, 'experience', 0) + q.rewards.experience
-            
+            player.experience += q.rewards.experience
             for cur, amt in q.rewards.currency.items():
                 player.currency[cur] = player.currency.get(cur, 0) + amt
-        return f"Completed {q.name}!"
+            lvl_msg = self.check_level_up()
+            if lvl_msg:
+                msg += f"\n🎉 {lvl_msg}"
+        return msg
 
     async def advance_time(self, minutes: int, model_name: str) -> None:
         """Advance game time and update the world state"""
@@ -666,8 +812,8 @@ class GameEngine:
                 data = await self._generate_and_validate(prompt, model_name)
                 if data.get('trigger'):
                     event = GlobalEvent(
-                        name=data['name'],
-                        description=data['description'],
+                        name=data.get('name', 'Unknown Event'),
+                        description=data.get('description', 'Something has changed in the world.'),
                         scope=EventScope(data.get('scope', 'global').lower()),
                         duration_minutes=data.get('duration_days', 1) * 1440
                     )
@@ -693,9 +839,9 @@ class GameEngine:
             data = await self._generate_and_validate(prompt, model_name)
             
             old_name = loc.name
-            loc.name = data['new_name']
-            loc.description = data['new_description']
-            loc.current_state_tag = data['state_tag']
+            loc.name = data.get('new_name', loc.name)
+            loc.description = data.get('new_description', loc.description)
+            loc.current_state_tag = data.get('state_tag', 'changed')
             loc.history.append(f"Once known as {old_name}, it was changed by: {action_description}")
             
             self.game_state.session.major_decision_history.append(f"Transformed {old_name} into {loc.name} through action: {action_description}")
@@ -721,12 +867,15 @@ class GameEngine:
 
     async def _update_regional_events(self, model_name: str) -> None:
         """Randomly trigger or end regional events"""
+        current_region_id = self.game_state.session.current_region_id
         for region_id, region in self.game_state.session.world.regions.items():
             # Chance to end existing events
             if region.active_events and random.random() < 0.2:
-                region.active_events.pop(0)
+                ended = region.active_events.pop(0)
                 region.event_modifiers.clear()
-            
+                if region_id == current_region_id:
+                    self.pending_messages.append(f"The {ended} in {region.name} has ended.")
+
             # Chance to start a new event if none active
             if not region.active_events and random.random() < 0.1:
                 event_types = [
@@ -738,7 +887,8 @@ class GameEngine:
                 event_name, desc, mods = random.choice(event_types)
                 region.active_events.append(event_name)
                 region.event_modifiers.update(mods)
-                # print(f"\n📢 EVENT in {region.name}: {event_name} - {desc}")
+                if region_id == current_region_id:
+                    self.pending_messages.append(f"EVENT in {region.name}: {event_name} - {desc}")
 
     def build_context_for_ai(self, target_npc: Optional[NPC] = None) -> str:
         if not self.game_state: return ""
@@ -777,7 +927,7 @@ class GameEngine:
         
         try:
             data = await self._generate_and_validate(prompt, model_name)
-            npc.interaction_summary = data['summary'][:500]
+            npc.interaction_summary = data.get('summary', 'No notable interaction.')[:500]
             sentiment = data.get('sentiment', 0.0)
             # Update mood gradually
             npc.mood = max(0.0, min(1.0, npc.mood + (sentiment * 0.1)))
@@ -793,6 +943,13 @@ class GameEngine:
         npc.rumors.append(rumor)
         return rumor
 
+    async def get_item_lore(self, item_id: UUID, model_name: str) -> str:
+        item = self.game_state.items.get(item_id)
+        if not item: return "You can't learn anything about that."
+        context = self.build_context_for_ai()
+        prompt = f"The player is studying '{item.name}' ({item.description}). Generate a short lore passage (2-3 sentences) about this item's history and significance."
+        return await self.ai.generate_response(prompt, context, model_name=model_name)
+
     async def generate_quest(self, npc: NPC, model_name: str) -> Optional[Quest]:
         return await self.generate_fetch_quest(npc, model_name)
 
@@ -802,7 +959,7 @@ class GameEngine:
         
         try:
             quest_data = await self._generate_and_validate(quest_prompt, model_name)
-            quest_item = Item(name=quest_data['item_name'], description=quest_data['item_description'], item_type=ItemType.QUEST_ITEM, value=random.randint(10, 50), weight=random.uniform(0.1, 2.0))
+            quest_item = Item(name=quest_data.get('item_name', 'Mysterious Object'), description=quest_data.get('item_description', 'An item of unknown origin.'), item_type=ItemType.QUEST_ITEM, value=random.randint(10, 50), weight=random.uniform(0.1, 2.0))
             
             available_locations = [loc for loc in self.game_state.locations.values() if loc.id != npc.current_location_id and loc.location_type == LocationType.LOCATION]
             if not available_locations: return None
@@ -817,9 +974,9 @@ class GameEngine:
             objective = QuestObjective(description=f"Find and return the {quest_item.name} to {npc.name}", objective_type="fetch", target=str(quest_item.id))
             
             quest = Quest(
-                name=quest_data['name'], description=quest_data['description'], quest_type=QuestType.FETCH,
+                name=quest_data.get('name', 'A Task'), description=quest_data.get('description', 'Complete this task.'), quest_type=QuestType.FETCH,
                 giver_id=npc.id, objectives=[objective], status=QuestStatus.ACTIVE,
-                target_item_id=quest_item.id, location_hint=quest_data['location_hint'],
+                target_item_id=quest_item.id, location_hint=quest_data.get('location_hint', 'Search the area.'),
                 rewards=QuestReward(experience=random.randint(50, 150), currency={"gold": random.randint(5, 25)})
             )
             
@@ -876,11 +1033,11 @@ class GameEngine:
                 data = await self._generate_and_validate(prompt, model_name)
                 # Create the item
                 new_item = Item(
-                    name=data['name'],
-                    description=data['description'],
-                    item_type=ItemType(data['item_type'].lower()),
-                    value=data['value'],
-                    rarity=ItemRarity(data['rarity'].lower())
+                    name=data.get('name', 'Crafted Item'),
+                    description=data.get('description', 'Something you made.'),
+                    item_type=ItemType(data.get('item_type', 'material').lower()),
+                    value=data.get('value', 10),
+                    rarity=ItemRarity(data.get('rarity', 'common').lower())
                 )
                 self.game_state.items[new_item.id] = new_item
                 
@@ -909,9 +1066,9 @@ class GameEngine:
         try:
             data = await self._generate_and_validate(prompt, model_name)
             if data.get('success'):
-                msg = data['outcome_description']
+                msg = data.get('outcome_description', 'Something happened.')
                 if data.get('new_exit_direction'):
-                    direction = Direction(data['new_exit_direction'].lower())
+                    direction = Direction(data.get('new_exit_direction', 'north').lower())
                     # Check if connection already exists
                     if not any(c.direction == direction for c in loc.connections):
                         # Create a dummy target location or discover a hidden one?
@@ -1065,11 +1222,20 @@ class GameEngine:
     async def load_game(self, filepath: Path) -> bool:
         try:
             with open(filepath, 'r', encoding='utf-8') as f: game_dict = json.load(f)
-            grid_data = game_dict['session']['world_grid']
-            grid_obj = WorldGrid(grid_data['width'], grid_data['height'])
-            for y, row in enumerate(grid_data['grid']):
-                for x, cell in enumerate(row): grid_obj.grid[y][x] = UUID(cell) if cell else None
-            game_dict['session']['world_grid'] = grid_obj
+            # Migration: old saves used 'world_grid', new uses 'region_grids'
+            session_data = game_dict['session']
+            if 'world_grid' in session_data and 'region_grids' not in session_data:
+                starting_id = session_data.get('current_region_id') or next(iter(session_data.get('world', {}).get('regions', {})), None)
+                if starting_id:
+                    session_data['region_grids'] = {starting_id: session_data.pop('world_grid')}
+                else:
+                    session_data.pop('world_grid', None)
+            grids_data = session_data.get('region_grids', {})
+            for region_id_str, grid_data in grids_data.items():
+                w, h = grid_data['width'], grid_data['height']
+                raw_grid = [[UUID(cell) if cell else None for cell in row] for row in grid_data['grid']]
+                grids_data[region_id_str] = WorldGrid(width=w, height=h, grid=raw_grid)
+            game_dict['session']['region_grids'] = grids_data
             self.game_state = CompleteGameState.model_validate(game_dict)
             return True
         except Exception as e:

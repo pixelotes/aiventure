@@ -5,14 +5,15 @@ import sys
 import random
 import difflib
 import inspect
+import time
 from uuid import UUID, uuid4
 from pathlib import Path
 from typing import Optional, List
 
 from config import settings
 from models import (
-    Direction, CharacterType, QuestStatus, Item, NPC, 
-    LocationType, ItemType, GeneralLocation, Coordinates
+    Direction, CharacterType, CharacterClass, QuestStatus, Item, NPC,
+    LocationType, ItemType, GeneralLocation, Coordinates, ServiceType
 )
 from ai_provider import LMStudioProvider
 from utils import Colors
@@ -61,6 +62,7 @@ class GameCLI:
         self.running = False
         self.selected_model = ""
         self.ac_socket_port = 9999
+        self._last_save_time = time.time()
         self.registry = CommandRegistry()
         self._register_commands()
         self._start_autocomplete_server()
@@ -89,6 +91,9 @@ class GameCLI:
         self.registry.register(["wait", "sleep"], self.handle_wait, "Wait for a duration")
         self.registry.register(["complete"], self.handle_complete_quest, "Complete/turn in a quest")
         self.registry.register(["read", "lore", "study"], self.handle_read, "Read or study lore")
+        self.registry.register(["buy"], self.handle_buy, "Buy an item from a shopkeeper")
+        self.registry.register(["sell"], self.handle_sell, "Sell an item to a shopkeeper")
+        self.registry.register(["shop"], self.handle_shop, "Browse a shopkeeper's wares")
         self.registry.register(["save"], self.save_game, "Save your progress")
         self.registry.register(["load"], self.load_game, "Load a saved game")
         self.registry.register(["ai"], self.handle_ai_command, "Execute a free-form AI action")
@@ -283,7 +288,8 @@ class GameCLI:
             "talk <npc>": "Chat", "ask <npc> about <topic>": "Inquire", 
             "examine <target>": "Look closely", "pick <item>": "Get item", 
             "drop <item>": "Lose item", "equip <item>": "Wield/Wear", 
-            "use <item>": "Activate", "ai <text>": "Free-form action", "save/load": "Manage files", "quit": "Leave game"
+            "use <item>": "Activate", "shop": "Browse wares", "buy <item>": "Buy from merchant",
+            "sell <item>": "Sell to merchant", "ai <text>": "Free-form action", "save/load": "Manage files", "quit": "Leave game"
         }
         print("\n📋 Available Commands:")
         for c, d in commands.items(): print(f"  {c:<25} - {d}")
@@ -302,6 +308,15 @@ class GameCLI:
             result = handler(args)
             if inspect.isawaitable(result):
                 await result
+            # Drain pending engine messages (events, etc.)
+            for msg in self.engine.pending_messages:
+                print(f"\n{Colors.YELLOW}📢 {msg}{Colors.ENDC}")
+            self.engine.pending_messages.clear()
+            # Auto-save
+            if self.engine.game_state and (time.time() - self._last_save_time) >= settings.auto_save_interval:
+                p = Path("saves") / f"{self.engine.game_state.session.session_name}.json"
+                if await self.engine.save_game(p):
+                    self._last_save_time = time.time()
             return True
         
         # Command not found, try fuzzy matching
@@ -574,7 +589,14 @@ class GameCLI:
         print(f"\n⚔️  {Colors.BOLD}Combat Turn{Colors.ENDC}")
         print(f"   {results['player_msg']}")
         print(f"   {results['enemy_msg']}")
-        
+
+        # Check player death
+        death_msg = self.engine.check_player_death()
+        if death_msg:
+            print(f"\n{Colors.RED}{Colors.BOLD}{death_msg}{Colors.ENDC}")
+            await self.display_location()
+            return
+
         if results["victory"] or results["fled"] or target.stats.health <= 0:
             self.engine.in_combat = False
             self.engine.combat_opponents = []
@@ -607,6 +629,44 @@ class GameCLI:
             else:
                 print(await self.engine.complete_quest(q.id))
         else: print(f"{npc.name} has no quests for you to return.")
+
+    def _find_merchant_at_location(self) -> Optional[NPC]:
+        """Find an NPC with buy/sell services at the current location"""
+        loc = self.engine.get_current_location()
+        for char in self.engine.game_state.characters.values():
+            if (isinstance(char, NPC) and char.current_location_id == loc.id
+                    and any(s.service_type == ServiceType.BUY_SELL for s in char.services_offered)):
+                return char
+        return None
+
+    async def handle_shop(self, npc_name: str = ""):
+        if npc_name:
+            loc = self.engine.get_current_location()
+            npc = next((c for c in self.engine.game_state.characters.values() if c.current_location_id == loc.id and npc_name.lower() in c.name.lower() and isinstance(c, NPC)), None)
+        else:
+            npc = self._find_merchant_at_location()
+        if not npc or not any(s.service_type == ServiceType.BUY_SELL for s in npc.services_offered):
+            print("No merchant here."); return
+        if not npc.shop_inventory:
+            print(f"{npc.name}: \"I have nothing to sell right now.\""); return
+        print(f"\n🛒 {npc.name}'s Wares:")
+        for item_id in npc.shop_inventory:
+            item = self.engine.game_state.items.get(item_id)
+            if item:
+                price = int(item.value * npc.prices_modifier)
+                print(f"  • {item.name} - {price}g - {item.description}")
+
+    async def handle_buy(self, item_name: str):
+        npc = self._find_merchant_at_location()
+        if not npc: print("No merchant here."); return
+        result = self.engine.buy_item_from_npc(npc, item_name)
+        print(f"\n{result}")
+
+    async def handle_sell(self, item_name: str):
+        npc = self._find_merchant_at_location()
+        if not npc: print("No merchant here."); return
+        result = self.engine.sell_item_to_npc(npc, item_name)
+        print(f"\n{result}")
 
     async def handle_read(self, item_name: str):
         item = self.engine.find_item_in_inventory(item_name)
@@ -688,7 +748,19 @@ class GameCLI:
         self.selected_model = settings.ollama_model if settings.ollama_model in models else models[0]
         p_name = input("Character name: ").strip() or "Adventurer"
         s_name = input("Adventure name: ").strip() or "Adventure"
-        await self.engine.create_new_game(p_name, uuid4(), s_name, self.selected_model)
+
+        classes = [c for c in CharacterClass if c != CharacterClass.COMMONER]
+        print("\nChoose your class:")
+        for i, c in enumerate(classes, 1):
+            print(f"  {i}. {c.value.title()}")
+        choice = input("Class #: ").strip()
+        try:
+            selected_class = classes[int(choice) - 1]
+        except (ValueError, IndexError):
+            selected_class = CharacterClass.WARRIOR
+            print(f"Defaulting to {selected_class.value.title()}.")
+
+        await self.engine.create_new_game(p_name, uuid4(), s_name, self.selected_model, selected_class)
         self.display_intro_screen()
         await self.display_location()
         return True
