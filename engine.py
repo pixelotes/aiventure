@@ -282,7 +282,7 @@ class GameEngine:
         width = random.randint(2, 3) # Keeping it small for now
         height = random.randint(2, 3)
         region.width, region.height = width, height
-        grid = WorldGrid(width, height)
+        grid = WorldGrid(width=width, height=height, grid=[[None]*width for _ in range(height)])
         self.game_state.session.region_grids[region_id] = grid
         
         allowed_loc_types = [t.value for t in GeneralLocationType]
@@ -1048,17 +1048,18 @@ class GameEngine:
     async def save_game(self, filepath: Path) -> bool:
         if not self.game_state: return False
         try:
-            grid = self.game_state.session.world_grid
-            serializable_grid = [[(str(c) if c else None) for c in row] for row in grid.grid]
-            orig_grid = self.game_state.session.world_grid
-            self.game_state.session.world_grid = {'width': grid.width, 'height': grid.height, 'grid': serializable_grid}
+            # GameState is a BaseModel, model_dump(mode='json') handles everything
+            # as long as sub-models like WorldGrid are also BaseModels.
             game_dict = self.game_state.model_dump(mode='json')
-            self.game_state.session.world_grid = orig_grid
+            
             filepath.parent.mkdir(parents=True, exist_ok=True)
-            with open(filepath, 'w', encoding='utf-8') as f: json.dump(game_dict, f, indent=2, default=str)
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(game_dict, f, indent=2, default=str)
             return True
         except Exception as e:
             llm_logger.error(f"Save error: {e}")
+            import traceback
+            llm_logger.error(traceback.format_exc())
             return False
 
     async def load_game(self, filepath: Path) -> bool:

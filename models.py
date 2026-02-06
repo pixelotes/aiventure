@@ -433,11 +433,10 @@ class GameTime(BaseModel):
         elif 21 <= self.hour < 24: self.time_of_day = TimeOfDay.NIGHT
         else: self.time_of_day = TimeOfDay.MIDNIGHT
 
-class WorldGrid:
-    def __init__(self, width: int, height: int):
-        self.width = width
-        self.height = height
-        self.grid: List[List[Optional[UUID]]] = [[None for _ in range(width)] for _ in range(height)]
+class WorldGrid(BaseModel):
+    width: int
+    height: int
+    grid: List[List[Optional[UUID]]]
 
     def get_location_id(self, x: int, y: int) -> Optional[UUID]:
         if 0 <= x < self.width and 0 <= y < self.height:
