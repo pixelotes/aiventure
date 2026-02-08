@@ -16,7 +16,7 @@ from models import (
     LocationType, ItemType, GeneralLocation, Coordinates, ServiceType
 )
 from ai_provider import LMStudioProvider
-from utils import Colors
+from utils import Colors, ThinkingSpinner
 from engine import GameEngine, EngineResult
 
 # ============================================================================
@@ -94,6 +94,8 @@ class GameCLI:
         self.registry.register(["buy"], self.handle_buy, "Buy an item from a shopkeeper")
         self.registry.register(["sell"], self.handle_sell, "Sell an item to a shopkeeper")
         self.registry.register(["shop"], self.handle_shop, "Browse a shopkeeper's wares")
+        self.registry.register(["enter"], self.handle_enter, "Enter a building")
+        self.registry.register(["cook"], self.handle_cook, "Cook ingredients at a campfire")
         self.registry.register(["save"], self.save_game, "Save your progress")
         self.registry.register(["load"], self.load_game, "Load a saved game")
         self.registry.register(["ai"], self.handle_ai_command, "Execute a free-form AI action")
@@ -130,6 +132,30 @@ class GameCLI:
 
         threading.Thread(target=server_loop, daemon=True).start()
     
+    def _drain_pending_messages(self):
+        for msg in self.engine.pending_messages:
+            if msg.startswith("DANGER:"):
+                print(f"\n{Colors.RED}{Colors.BOLD}⚔️  {msg}{Colors.ENDC}")
+            elif msg.startswith("PREMONITION:"):
+                print(f"\n{Colors.HEADER}{Colors.BOLD}👁  {msg}{Colors.ENDC}")
+            elif msg.startswith("OMINOUS:"):
+                print(f"\n{Colors.RED}🌑 {msg}{Colors.ENDC}")
+            elif msg.startswith("DISCOVERY:"):
+                print(f"\n{Colors.CYAN}{Colors.BOLD}🔍 {msg}{Colors.ENDC}")
+            elif msg.startswith("WORLD EVENT:"):
+                print(f"\n{Colors.HEADER}{Colors.BOLD}🌍 {msg}{Colors.ENDC}")
+            elif msg.startswith("QUEST ENCOUNTER:"):
+                print(f"\n{Colors.GREEN}{Colors.BOLD}📜 {msg}{Colors.ENDC}")
+            elif msg.startswith("Quest completed:") or msg.startswith("Quest ready"):
+                print(f"\n{Colors.GREEN}✅ {msg}{Colors.ENDC}")
+            elif msg.startswith("Gained") or msg.startswith("LEVEL UP"):
+                print(f"\n{Colors.GREEN}{Colors.BOLD}⭐ {msg}{Colors.ENDC}")
+            elif msg.startswith("DM:"):
+                print(f"\n{Colors.CYAN}🎲 {msg[3:].strip()}{Colors.ENDC}")
+            else:
+                print(f"\n{Colors.YELLOW}📢 {msg}{Colors.ENDC}")
+        self.engine.pending_messages.clear()
+
     def display_header(self):
         print("\n" + "="*60 + "\n    AI-POWERED TEXT ADVENTURE ENGINE\n" + "="*60)
     async def display_location(self, args: str = ""):
@@ -164,7 +190,24 @@ class GameCLI:
                     print(f"{Colors.BOLD}{Colors.HEADER}🌌 WORLD EVENT: {event.name.upper()}{Colors.ENDC}")
                     print(f"   {event.description}")
             
-        if location.notable_features: print(f"You notice: {', '.join([f'{Colors.CYAN}{f.name}{Colors.ENDC}' for f in location.notable_features])}.")
+        buildings = [f for f in location.notable_features if f.metadata.get("enterable")]
+        other_features = [f for f in location.notable_features if not f.metadata.get("enterable")]
+        if buildings:
+            print(f"Buildings you can enter: {', '.join([f'{Colors.GREEN}{b.name}{Colors.ENDC}' for b in buildings])}.")
+        if other_features:
+            feature_strs = []
+            for f in other_features:
+                if f.metadata.get("campfire"):
+                    feature_strs.append(f"{Colors.RED}[Campfire]{Colors.ENDC} {Colors.CYAN}{f.name}{Colors.ENDC}")
+                elif f.metadata.get("puzzle") and not f.metadata.get("solved"):
+                    feature_strs.append(f"{Colors.YELLOW}[?]{Colors.ENDC} {Colors.CYAN}{f.name}{Colors.ENDC}")
+                elif f.metadata.get("puzzle") and f.metadata.get("solved"):
+                    feature_strs.append(f"{Colors.GREEN}[Solved]{Colors.ENDC} {Colors.CYAN}{f.name}{Colors.ENDC}")
+                elif f.metadata.get("corpse"):
+                    feature_strs.append(f"{Colors.RED}[Corpse]{Colors.ENDC} {Colors.CYAN}{f.name}{Colors.ENDC}")
+                else:
+                    feature_strs.append(f"{Colors.CYAN}{f.name}{Colors.ENDC}")
+            print(f"You notice: {', '.join(feature_strs)}.")
         if location.items:
             item_list = []
             for item_id in location.items:
@@ -211,7 +254,13 @@ class GameCLI:
         if not self.engine.game_state: return
         player = self.engine.game_state.session.player_character
         stats = player.stats
+        xp_threshold = player.level * 100
+        xp_pct = min(100, int((player.experience / max(1, xp_threshold)) * 100))
+        bar_len = 20
+        filled = int(bar_len * xp_pct / 100)
+        xp_bar = f"{'█' * filled}{'░' * (bar_len - filled)}"
         print(f"\n💤 {player.name} (Lvl {player.level} {player.character_class.value.title()})")
+        print(f"   XP: {player.experience}/{xp_threshold} [{xp_bar}] {xp_pct}%")
         print(f"   Health: {stats.health}/{stats.max_health} | Stamina: {stats.stamina}/{stats.max_stamina} | Gold: {player.currency.get('gold', 0)}")
         
         active_quests = [self.engine.game_state.quests[qid] for qid in player.active_quests if qid in self.engine.game_state.quests]
@@ -232,6 +281,10 @@ class GameCLI:
         
         if player.conditions:
             print(f"   {Colors.RED}Conditions: {', '.join(player.conditions)}{Colors.ENDC}")
+
+        if player.temporary_effects:
+            buff_strs = [f"+{e.get('bonus',0)} {e.get('stat','?')} ({e.get('remaining_minutes',0)}min)" for e in player.temporary_effects]
+            print(f"   {Colors.GREEN}Active Buffs: {', '.join(buff_strs)}{Colors.ENDC}")
 
         if player.quests_completed > 0: print(f"   Quests completed: {player.quests_completed}")
 
@@ -288,7 +341,9 @@ class GameCLI:
             "talk <npc>": "Chat", "ask <npc> about <topic>": "Inquire", 
             "examine <target>": "Look closely", "pick <item>": "Get item", 
             "drop <item>": "Lose item", "equip <item>": "Wield/Wear", 
-            "use <item>": "Activate", "shop": "Browse wares", "buy <item>": "Buy from merchant",
+            "use <item>": "Activate", "cook": "Cook at campfire",
+            "enter <building>": "Enter a building",
+            "shop": "Browse wares", "buy <item>": "Buy from merchant",
             "sell <item>": "Sell to merchant", "ai <text>": "Free-form action", "save/load": "Manage files", "quit": "Leave game"
         }
         print("\n📋 Available Commands:")
@@ -303,15 +358,23 @@ class GameCLI:
         
         if cmd in ["quit", "exit", "q"]: return False
         
+        # Passive commands that don't count as "actions" for DM/quest triggers
+        PASSIVE_CMDS = {"look", "l", "map", "time", "status", "stat", "inventory",
+                        "inv", "i", "help", "h", "save", "load"}
+
         handler = self.registry.get_handler(cmd)
         if handler:
             result = handler(args)
             if inspect.isawaitable(result):
                 await result
-            # Drain pending engine messages (events, etc.)
-            for msg in self.engine.pending_messages:
-                print(f"\n{Colors.YELLOW}📢 {msg}{Colors.ENDC}")
-            self.engine.pending_messages.clear()
+
+            # Increment action counters for non-passive commands
+            if self.engine.game_state and cmd not in PASSIVE_CMDS:
+                self.engine.game_state.session.dm_action_counter += 1
+                self.engine.game_state.session.actions_since_last_quest += 1
+                self.engine._tick_npcs()
+
+            self._drain_pending_messages()
             # Auto-save
             if self.engine.game_state and (time.time() - self._last_save_time) >= settings.auto_save_interval:
                 p = Path("saves") / f"{self.engine.game_state.session.session_name}.json"
@@ -335,9 +398,9 @@ class GameCLI:
             # We are looking for an argument for a command, or it's empty
             if not parts:
                 return [
-                    "look", "map", "time", "status", "inventory", "go", "talk", 
-                    "ask", "examine", "equip", "unequip", "pick", "drop", "use", 
-                    "attack", "save", "load"
+                    "look", "map", "time", "status", "inventory", "go", "talk",
+                    "ask", "examine", "equip", "unequip", "pick", "drop", "use",
+                    "attack", "enter", "cook", "save", "load"
                 ]
             
             cmd = parts[0].lower()
@@ -360,10 +423,14 @@ class GameCLI:
                 
             if cmd in ["talk", "ask", "attack"]:
                 loc = self.engine.get_current_location()
-                npcs = [char.name for char in self.engine.game_state.characters.values() 
+                npcs = [char.name for char in self.engine.game_state.characters.values()
                         if char.current_location_id == loc.id and getattr(char, 'character_type', None) != CharacterType.PLAYER]
                 return sorted(npcs)
-            
+
+            if cmd == "enter":
+                loc = self.engine.get_current_location()
+                return sorted([f.name for f in loc.notable_features if f.metadata.get("enterable")])
+
             return []
         
         # We are completing the last part of the input
@@ -371,9 +438,9 @@ class GameCLI:
         if len(parts) == 1:
             # Completing a command
             valid_cmds = [
-                "quit", "exit", "help", "look", "map", "time", "status", "inventory", 
-                "go", "talk", "ask", "examine", "equip", "unequip", "pick", "take", 
-                "grab", "drop", "use", "attack", "wait", "sleep", "complete", "save", "load",
+                "quit", "exit", "help", "look", "map", "time", "status", "inventory",
+                "go", "talk", "ask", "examine", "equip", "unequip", "pick", "take",
+                "grab", "drop", "use", "attack", "enter", "cook", "wait", "sleep", "complete", "save", "load",
                 "north", "south", "east", "west", "ai"
             ]
             return [c for c in valid_cmds if c.startswith(last_part)]
@@ -396,9 +463,13 @@ class GameCLI:
             
         if cmd in ["talk", "ask", "attack"]:
             loc = self.engine.get_current_location()
-            options += [char.name for char in self.engine.game_state.characters.values() 
+            options += [char.name for char in self.engine.game_state.characters.values()
                         if char.current_location_id == loc.id and getattr(char, 'character_type', None) != CharacterType.PLAYER]
-        
+
+        if cmd == "enter":
+            loc = self.engine.get_current_location()
+            options += [f.name for f in loc.notable_features if f.metadata.get("enterable")]
+
         return [o for o in sorted(list(set(options))) if o.lower().startswith(arg_prefix)]
 
     async def handle_movement(self, direction_str: str):
@@ -418,6 +489,75 @@ class GameCLI:
             print(f"\n{message}")
             if success: await self.display_location()
         except ValueError: print(f"Invalid direction: {direction_str}")
+
+    async def handle_enter(self, building_name: str):
+        if not building_name:
+            loc = self.engine.get_current_location()
+            enterable = [f.name for f in loc.notable_features if f.metadata.get("enterable")]
+            if enterable:
+                print(f"Enter what? Available: {', '.join(enterable)}")
+            else:
+                print("There is nothing to enter here.")
+            return
+        with ThinkingSpinner(ThinkingSpinner.ENTERING):
+            success, message = await self.engine.enter_building(building_name, self.selected_model)
+        print(f"\n{message}")
+        if success:
+            await self.display_location()
+
+    async def handle_cook(self, args: str):
+        loc = self.engine.get_current_location()
+        campfire = next((f for f in loc.notable_features if f.metadata.get("campfire")), None)
+        if not campfire:
+            print("There is no campfire here to cook at.")
+            return
+
+        player = self.engine.game_state.session.player_character
+        food_items = []
+        seen = set()
+        for item_id in player.inventory:
+            item = self.engine.game_state.items.get(item_id)
+            if item and item.name in self.engine.FOOD_INGREDIENT_NAMES and item.name not in seen:
+                seen.add(item.name)
+                food_items.append(item)
+
+        if not food_items:
+            print("You have no food ingredients to cook with.")
+            return
+
+        print(f"\n{Colors.CYAN}Campfire Cooking{Colors.ENDC}")
+        print("Available ingredients:")
+        for i, item in enumerate(food_items, 1):
+            print(f"  {i}. {item.name}")
+
+        print("\nChoose 1-3 ingredients (e.g. '1 2 3'). Type 'cancel' to stop.")
+        choice = input("Ingredients: ").strip()
+        if choice.lower() == "cancel":
+            print("You step away from the campfire.")
+            return
+
+        try:
+            indices = [int(c) - 1 for c in choice.split()]
+            if not (1 <= len(indices) <= 3):
+                print("Choose 1 to 3 ingredients.")
+                return
+            selected_ids = []
+            for idx in indices:
+                if 0 <= idx < len(food_items):
+                    selected_ids.append(food_items[idx].id)
+                else:
+                    print(f"Invalid selection: {idx + 1}")
+                    return
+        except ValueError:
+            print("Invalid input. Use numbers separated by spaces.")
+            return
+
+        with ThinkingSpinner(ThinkingSpinner.COOKING):
+            success, msg, meal = await self.engine.cook_items(selected_ids, self.selected_model)
+        if success:
+            print(f"\n{Colors.GREEN}{Colors.BOLD}Chef's Result:{Colors.ENDC} {msg}")
+        else:
+            print(f"\n{Colors.RED}{msg}{Colors.ENDC}")
 
     async def handle_wait(self, args: str):
         minutes = 30
@@ -459,15 +599,36 @@ class GameCLI:
             if not feature.detailed_description:
                 feature.detailed_description = await self.handle_ai_command(f"Describe the {feature.name} in detail.", print_response=False)
             print(f"\n🎭 {feature.detailed_description}")
+            if feature.metadata.get("puzzle"):
+                if feature.metadata.get("solved"):
+                    print(f"{Colors.GREEN}(Solved){Colors.ENDC}")
+                else:
+                    hint = feature.metadata.get("solution_hint", "")
+                    if hint:
+                        print(f"{Colors.YELLOW}Hint: {hint}{Colors.ENDC}")
             if feature.contained_items:
                 revealed = []
                 for iid in list(feature.contained_items):
                     sub = self.engine.game_state.items.get(iid)
-                    if sub: 
+                    if sub:
                         revealed.append(sub.name); loc.items.append(iid)
-                if revealed: 
+                if revealed:
                     print(f"Inside you find: {', '.join(revealed)}.")
                     feature.contained_items.clear()
+            # Reveal hidden dungeon connections
+            if feature.metadata.get("dungeon_entrance"):
+                hidden_dir = feature.metadata.get("hidden_connection_direction", "down")
+                try:
+                    reveal_direction = Direction(hidden_dir)
+                except ValueError:
+                    reveal_direction = Direction.DOWN
+                for conn in loc.connections:
+                    if conn.direction == reveal_direction and not conn.is_visible:
+                        conn.is_visible = True
+                        conn.is_passable = True
+                        print(f"\n{Colors.GREEN}{Colors.BOLD}You've discovered a hidden passage leading {reveal_direction.value}!{Colors.ENDC}")
+                        feature.metadata.pop("dungeon_entrance", None)
+                        break
             return
         print("Nothing special to see.")
 
@@ -487,14 +648,14 @@ class GameCLI:
         if not npc: print(f"No one named {npc_name} here."); return
         
         if topic == 'rumor':
-            print("🤔 Thinking...", end="", flush=True)
-            rumor = await self.engine.generate_rumor(npc, self.selected_model)
-            print(f"\r🎭 {npc.name}: \"{rumor}\"")
+            with ThinkingSpinner():
+                rumor = await self.engine.generate_rumor(npc, self.selected_model)
+            print(f"🎭 {npc.name}: \"{rumor}\"")
         elif topic == 'quest':
-            print("🤔 Thinking...", end="", flush=True)
-            quest = await self.engine.generate_quest(npc, self.selected_model)
-            if quest: print(f"\r🎭 {npc.name}: \"{quest.description}\"\nNew Quest: {quest.name}")
-            else: print(f"\r🎭 {npc.name}: \"Nothing right now.\"")
+            with ThinkingSpinner():
+                quest = await self.engine.generate_quest(npc, self.selected_model)
+            if quest: print(f"🎭 {npc.name}: \"{quest.description}\"\nNew Quest: {quest.name}")
+            else: print(f"🎭 {npc.name}: \"Nothing right now.\"")
         elif topic == 'services':
             print(f"🎭 {npc.name}: \"I can help with: {', '.join([s.name for s in npc.services_offered]) or 'Nothing'}\"")
         else:
@@ -505,6 +666,8 @@ class GameCLI:
     async def handle_pickup(self, item_name: str):
         msg = self.engine.pickup_item(item_name)
         print(f"\n{msg}")
+        self.engine.check_quest_progress()
+        self._drain_pending_messages()
         await self.display_location()
 
     async def handle_drop(self, item_name: str):
@@ -540,10 +703,21 @@ class GameCLI:
                     player.inventory.remove(target_item.id)
                 return
 
-            # 2. Try to find target feature (for environmental puzzles)
+            # 2. Try to find target feature
             target_feature = next((f for f in loc.notable_features if tg_n.lower() in f.name.lower()), None)
             if target_feature:
-                # First check predefined interactions if any
+                # Check if it's a puzzle
+                if target_feature.metadata.get("puzzle"):
+                    if target_feature.metadata.get("solved"):
+                        print("\nThis puzzle has already been solved.")
+                    else:
+                        success, msg = self.engine.attempt_solve_puzzle(target_feature, tool)
+                        if success:
+                            print(f"\n{Colors.GREEN}{Colors.BOLD}PUZZLE SOLVED!{Colors.ENDC}")
+                        print(f"\n{msg}")
+                    return
+
+                # Check predefined interactions
                 if target_feature.id in tool.interactions:
                     print(f"\n{tool.interactions[target_feature.id]}")
                     if target_feature.contained_items:
@@ -571,8 +745,16 @@ class GameCLI:
             print(f"No '{tg_n}' here to use with '{t_n}'.")
         else:
             item = self.engine.find_item_in_inventory(args)
-            if item and item.self_use_effect_description: print(f"\n{item.self_use_effect_description}")
-            else: print("\nCan't use that alone. Try 'use <item> with <target>'.")
+            if item and item.self_use_effect_description:
+                print(f"\n{item.self_use_effect_description}")
+                if item.use_effects:
+                    applied = self.engine.apply_item_effects(
+                        self.engine.game_state.session.player_character, item
+                    )
+                    if applied:
+                        print(f"  Effects: {applied}")
+            else:
+                print("\nCan't use that alone. Try 'use <item> with <target>'.")
 
     async def handle_combat_action(self, action: str, target_name: str):
         loc = self.engine.get_current_location()
@@ -672,9 +854,9 @@ class GameCLI:
         item = self.engine.find_item_in_inventory(item_name)
         if not item: print("You don't have that item."); return
         
-        print("\n🤔 Studying...", end="", flush=True)
-        lore = await self.engine.get_item_lore(item.id, self.selected_model)
-        print(f"\r{Colors.HEADER}{Colors.BOLD}📖 {item.name} Lore:{Colors.ENDC}")
+        with ThinkingSpinner(ThinkingSpinner.STUDYING):
+            lore = await self.engine.get_item_lore(item.id, self.selected_model)
+        print(f"{Colors.HEADER}{Colors.BOLD}📖 {item.name} Lore:{Colors.ENDC}")
         print(f"{lore}")
 
     async def save_game(self, args: str = ""):
@@ -696,27 +878,24 @@ class GameCLI:
 
     async def handle_ai_command(self, command: str, target_npc: Optional[NPC] = None, print_response: bool = True) -> Optional[str]:
         if not self.engine.game_state: return None
-        print("\n🤔 Thinking...", end="", flush=True)
-        player_char = self.engine.game_state.session.player_character
-        full_command = f"{command} (Respond as the NPC or narrator in 1-2 sentences. Never speak for {player_char.name}.)"
-        
-        context = self.engine.build_context_for_ai(target_npc=target_npc)
-        response = await self.engine.ai.generate_response(full_command, context)
-        
-        print("\r" + " " * 20 + "\r", end="")
-        if print_response: print(f"🎭 {response}")
-        
-        if target_npc:
-            # Update memory in the background or wait
-            await self.engine.update_npc_memory(target_npc, command, response, self.selected_model)
-            
-        # Detect high-impact actions for persistence
-        high_impact_keywords = ["burn", "destroy", "kill", "assassinate", "fortify", "rebuild", "clean", "restore", "trap"]
-        if any(kw in command.lower() for kw in high_impact_keywords):
-             persistence_msg = await self.engine.apply_persistent_change(self.engine.get_current_location().id, command, self.selected_model)
-             print(persistence_msg)
 
-        return response
+        if target_npc:
+            # NPC-targeted commands: narrative-only (existing behavior)
+            player_char = self.engine.game_state.session.player_character
+            full_command = f"{command} (Respond as the NPC in 1-2 sentences. Never speak for {player_char.name}.)"
+            context = self.engine.build_context_for_ai(target_npc=target_npc)
+            with ThinkingSpinner():
+                response = await self.engine.ai.generate_response(full_command, context)
+            if print_response: print(f"\n🎭 {response}")
+            await self.engine.update_npc_memory(target_npc, command, response, self.selected_model)
+            return response
+        else:
+            # World/action commands: DM system with game effects
+            context = self.engine.build_context_for_ai()
+            with ThinkingSpinner():
+                narrative = await self.engine.process_ai_command(command, context, self.selected_model)
+            if print_response and narrative: print(f"\n🎭 {narrative}")
+            return narrative
 
     async def main_loop(self):
         self.display_header()

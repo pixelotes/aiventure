@@ -244,6 +244,14 @@ class NPCRole(str, Enum):
     MERCHANT = "merchant"
     CRAFTSMAN = "craftsman"
 
+class NPCGoal(str, Enum):
+    NONE = "none"
+    ATTACK_PLAYER = "attack_player"
+    FOLLOW_PLAYER = "follow_player"
+    DELIVER_MESSAGE = "deliver_message"
+    FLEE = "flee"
+    PATROL = "patrol"
+
 class ServiceType(str, Enum):
     BUY_SELL = "buy_sell"
     REPAIR = "repair"
@@ -281,6 +289,11 @@ class NPC(BaseCharacter):
     secrets: List[str] = Field(default_factory=list)
     interaction_summary: str = ""
     mood: float = 0.5  # 0.0 (hostile/sad) to 1.0 (friendly/happy)
+    goal: NPCGoal = NPCGoal.NONE
+    goal_data: Dict[str, Any] = Field(default_factory=dict)
+    is_transient: bool = False
+    ticks_alive: int = 0
+    max_ticks: int = 0  # 0 = never auto-despawn
     faction: Optional[str] = None
 
 # ============================================================================
@@ -398,6 +411,7 @@ class Quest(BaseModel):
     # New fields for fetch quests
     target_item_id: Optional[UUID] = None  # The item to fetch
     location_hint: Optional[str] = None    # Vague hint about where to find it
+    is_dynamic: bool = False               # Auto-generated via dynamic quest system
 
 # ============================================================================
 # Game Time, Grid, and State Models
@@ -459,6 +473,13 @@ class GameSession(BaseModel):
     region_grids: Dict[UUID, WorldGrid] = Field(default_factory=dict)
     active_global_events: List[GlobalEvent] = Field(default_factory=list)
     major_decision_history: List[str] = Field(default_factory=list)
+    # Dynamic quest idle tracker
+    actions_since_last_quest: int = 0
+    # Virtual DM state
+    dm_memory: List[str] = Field(default_factory=list)
+    dm_tension_level: float = 0.3
+    dm_action_counter: int = 0
+    dm_last_check: int = 0
     created_at: datetime = Field(default_factory=datetime.now)
     last_played: datetime = Field(default_factory=datetime.now)
     model_config = ConfigDict(arbitrary_types_allowed=True)

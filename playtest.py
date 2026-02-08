@@ -7,15 +7,17 @@ import asyncio
 import sys
 import traceback
 import random
-from uuid import uuid4
+import re
+import json
+from uuid import uuid4, UUID
 from pathlib import Path
 from typing import List, Optional, Any, Dict
 
 from ai_provider import AIProvider
 from engine import GameEngine
 from models import (
-    Direction, CharacterType, QuestStatus, ItemType, NPC,
-    LocationType, GeneralLocation
+    Direction, CharacterType, QuestStatus, ItemType, NPC, NPCGoal,
+    LocationType, GeneralLocation, NotableFeature, Item, NPCRole
 )
 
 # ============================================================================
@@ -57,7 +59,12 @@ class MockAIProvider(AIProvider):
                 "quest_description": "Reassemble the Crystal Crown to restore peace to Eldoria.",
                 "player_background": "You are a former blacksmith's apprentice who discovered a fragment of the Crystal Crown in the forge's ashes.",
                 "starter_region_type": "Whispering Woods City",
-                "goal_region_type": "Crystal Citadel"
+                "goal_region_type": "Crystal Citadel",
+                "optional_regions": [
+                    {"name": "Port of Silvermist", "region_type": "port_city", "description": "A bustling harbor town where merchants trade exotic wares.", "connected_to": "start"},
+                    {"name": "Ruins of Thelkara", "region_type": "ancient_ruins", "description": "Crumbling towers hiding forgotten knowledge and cursed treasures.", "connected_to": "boundary"},
+                    {"name": "Greenhollow Countryside", "region_type": "countryside", "description": "Rolling hills with farmsteads and rumored cave systems beneath.", "connected_to": "goal"}
+                ]
             }'''
 
         # Location generation (city)
@@ -125,6 +132,51 @@ class MockAIProvider(AIProvider):
                 ]{npc_block}
             }}'''
 
+        # Dungeon level generation (dynamic quest dungeon)
+        if "dungeon" in p and "levels" in p:
+            depth_match = re.search(r'(\d+)-level', p)
+            depth = int(depth_match.group(1)) if depth_match else 2
+            levels = []
+            for i in range(depth):
+                is_final = (i == depth - 1)
+                levels.append({
+                    "name": f"Dungeon Level {i+1}",
+                    "description": f"A dark {'treasure chamber' if is_final else 'corridor'} deep underground.",
+                    "short_description": f"Level {i+1}",
+                    "atmosphere": "dark and foreboding",
+                    "notable_features": [{"name": f"Stone Alcove {i+1}", "description": "A carved niche in the wall."}],
+                    "enemy": {
+                        "name": f"Dungeon Creature {i+1}",
+                        "description": "A hostile inhabitant of the depths.",
+                    } if not is_final else None,
+                    "is_final": is_final,
+                })
+            return json.dumps({"levels": levels})
+
+        # Building interior generation
+        if "interior" in p and ("floor" in p or "building" in p):
+            floor_match = re.search(r'has (\d+) floor', p)
+            num_floors = int(floor_match.group(1)) if floor_match else 1
+            floors = []
+            for i in range(num_floors):
+                npcs = []
+                if i == 0:
+                    npcs = [
+                        {"name": "Bran the Innkeeper", "description": "A burly man with a warm smile.", "race": "human", "role": "innkeeper"},
+                        {"name": "Elda", "description": "A young barmaid.", "race": "human", "role": "commoner"},
+                    ]
+                else:
+                    npcs = [{"name": "Weary Traveler", "description": "A hooded figure resting.", "race": "human", "role": "commoner"}]
+                floors.append({
+                    "name": f"{'Main Hall' if i == 0 else f'Upper Floor {i}'}",
+                    "description": f"{'A warm room with a roaring fireplace.' if i == 0 else 'A quiet corridor with guest rooms.'}",
+                    "short_description": f"{'A cozy hall.' if i == 0 else 'Guest rooms.'}",
+                    "atmosphere": "warm and inviting" if i == 0 else "quiet",
+                    "notable_features": [{"name": f"{'Fireplace' if i == 0 else 'Locked Door'}", "description": "An interesting feature."}],
+                    "npcs": npcs,
+                })
+            return json.dumps({"floors": floors})
+
         # Sub-level generation
         if "sub-level" in p:
             return '''{
@@ -155,6 +207,48 @@ class MockAIProvider(AIProvider):
                 "location_hint": "Look near the old ruins to the east."
             }'''
 
+        # Dynamic quest generation
+        if "quest encounter" in p or ("quest type" in p and "fetch" in p.lower()):
+            quest_types = ["fetch", "kill", "exploration"]
+            qt = random.choice(quest_types)
+            return f'''{{
+                "quest_type": "{qt}",
+                "name": "The Wanderer's Request",
+                "description": "A traveling stranger needs help with a dangerous task.",
+                "npc_name": "Traveling Stranger",
+                "npc_description": "A weary traveler with a haunted look in their eyes.",
+                "npc_role": "quest_giver",
+                "objective_description": "Help the stranger with their request.",
+                "item_name": "Strange Relic",
+                "item_description": "A small carved stone pulsing with faint light.",
+                "target_location_hint": "Search the nearby area.",
+                "reward_gold": 15,
+                "reward_xp": 100
+            }}'''
+
+        # DM command (process_ai_command) — must be checked before Virtual DM
+        if "freeform dm command" in p:
+            return json.dumps({
+                "narrative": "You rest by the warm fire, feeling strength return to your limbs.",
+                "effects": [
+                    {"type": "heal", "amount": 30},
+                    {"type": "advance_time", "minutes": 60},
+                    {"type": "give_gold", "amount": 10},
+                    {"type": "spawn_item", "name": "Warm Bread", "description": "Fresh from the fire.", "item_type": "consumable", "value": 3},
+                    {"type": "add_feature", "name": "Hidden Alcove", "description": "A small nook behind the fireplace."}
+                ]
+            })
+
+        # Virtual DM
+        if "dungeon master" in p.lower() or "advance the narrative" in p.lower():
+            actions = ["premonition", "noop", "discovery"]
+            act = random.choice(actions)
+            return f'''{{
+                "action": "{act}",
+                "description": "A cold wind picks up and you sense something watching from the shadows.",
+                "dm_note": "Building atmosphere and tension for the player."
+            }}'''
+
         # Plot heartbeat
         if "plot shift" in p or "world event" in p:
             return '{"trigger": false}'
@@ -175,6 +269,18 @@ class MockAIProvider(AIProvider):
                 "item_type": "weapon",
                 "value": 25,
                 "rarity": "uncommon"
+            }'''
+
+        # Cooking at campfire
+        if "cooking at a campfire" in p or ("cook" in p and "ingredients" in p):
+            return '''{
+                "name": "Hearty Mushroom Stew",
+                "description": "A bubbling stew of forest mushrooms and wild berries, fragrant with herbs.",
+                "effects": [
+                    {"stat": "strength", "bonus": 2, "duration_minutes": 60},
+                    {"stat": "constitution", "bonus": 1, "duration_minutes": 60}
+                ],
+                "heal_amount": 20
             }'''
 
         # Item on feature
@@ -580,9 +686,536 @@ async def run_playtest():
         report.crash("Blocked move failed", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
 
     # ====================================================================
-    # PHASE 11: Code-level bug detection (static checks)
+    # PHASE 11: Building Entry
     # ====================================================================
-    print("\n--- PHASE 11: Static Analysis ---")
+    print("\n--- PHASE 11: Building Entry ---")
+    try:
+        found_building = False
+        for loc_id, loc in game_state.locations.items():
+            enterable = [f for f in loc.notable_features if f.metadata.get("enterable")]
+            if enterable:
+                player.current_location_id = loc_id
+                feature = enterable[0]
+                report.action(f"Entering building: {feature.name}")
+                success, msg = await engine.enter_building(feature.name, model)
+                report.action(f"Enter result: success={success}, msg={msg}")
+                if success:
+                    interior = engine.get_current_location()
+                    report.observe(f"Inside: {interior.name} (type: {interior.location_type})")
+                    out_conn = next((c for c in interior.connections if c.direction == Direction.OUT), None)
+                    if out_conn:
+                        report.observe("OUT connection exists — OK")
+                    else:
+                        report.bug("Missing OUT connection", "Building interior has no OUT exit")
+                    npcs_inside = [c for c in engine.game_state.characters.values() if c.current_location_id == interior.id and getattr(c, 'character_type', None) != CharacterType.PLAYER]
+                    report.observe(f"NPCs inside: {[n.name for n in npcs_inside]}")
+                    # Test going out
+                    if out_conn:
+                        success2, msg2 = await engine.move_player(Direction.OUT, model)
+                        report.action(f"Go out: success={success2}, msg={msg2}")
+                found_building = True
+                break
+        if not found_building:
+            report.warn("No enterable buildings found to test")
+    except Exception as e:
+        report.crash("Building entry failed", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+
+    # ====================================================================
+    # PHASE 13: Cooking System
+    # ====================================================================
+    print("\n--- PHASE 13: Cooking System ---")
+    try:
+        # Refresh references after save/load in Phase 9
+        game_state = engine.game_state
+        player = game_state.session.player_character
+
+        # Use any location and place a campfire on it
+        cook_loc = engine.get_current_location()
+        player.current_location_id = cook_loc.id
+
+        # Place a campfire if none exists
+        has_campfire = any(f.metadata.get("campfire") for f in cook_loc.notable_features)
+        if not has_campfire:
+            cook_loc.notable_features.append(NotableFeature(
+                name="Test Campfire",
+                detailed_description="A ring of stones with charred wood.",
+                metadata={"campfire": True},
+            ))
+            report.action("Placed test campfire at location")
+        else:
+            report.action("Campfire already exists at location")
+
+        # Create food ingredients in player inventory
+        food_ids = []
+        for food_name in ["Wild Berries", "Forest Mushrooms"]:
+            item = engine._create_catalog_item(food_name)
+            if item:
+                player.inventory.append(item.id)
+                food_ids.append(item.id)
+                report.action(f"Added {food_name} to inventory")
+            else:
+                report.bug("Missing food item", f"Could not create {food_name} from catalog")
+
+        if len(food_ids) >= 2:
+            # Cook the items
+            success, msg, meal = await engine.cook_items(food_ids, model)
+            report.action(f"Cook result: success={success}, msg={msg}")
+            if success and meal:
+                report.observe(f"Meal created: {meal.name}, effects: {meal.use_effects}")
+
+                # Record stats before eating
+                old_health = player.stats.health
+                old_strength = player.stats.strength
+
+                # Eat the meal
+                effect_desc = engine.apply_item_effects(player, meal)
+                report.action(f"Ate {meal.name}: {effect_desc}")
+
+                # Verify heal applied
+                if player.stats.health > old_health or old_health == player.stats.max_health:
+                    report.observe(f"Health after eating: {player.stats.health}/{player.stats.max_health} — OK")
+                else:
+                    report.bug("Heal not applied", f"Health unchanged: {old_health} → {player.stats.health}")
+
+                # Verify buff applied
+                if player.temporary_effects:
+                    report.observe(f"Active temporary effects: {len(player.temporary_effects)}")
+                    for te in player.temporary_effects:
+                        report.observe(f"  Buff: +{te.get('bonus')} {te.get('stat')} ({te.get('remaining_minutes')}min from {te.get('source')})")
+
+                    # Verify stat increased
+                    if player.stats.strength > old_strength:
+                        report.observe(f"Strength buffed: {old_strength} → {player.stats.strength} — OK")
+
+                    # Test effect expiry
+                    msgs = engine.expire_temporary_effects(player, 9999)
+                    report.action(f"Expired all effects: {msgs}")
+                    if len(player.temporary_effects) == 0:
+                        report.observe("All temporary effects expired — OK")
+                    else:
+                        report.bug("Effects not expired", f"Still have {len(player.temporary_effects)} effects after 9999 min")
+                else:
+                    report.warn("No temporary effects after eating meal — cooking buffs may not have applied")
+            elif not success:
+                report.bug("Cooking failed", f"cook_items returned False: {msg}")
+        else:
+            report.warn("Could not create enough food ingredients for cooking test")
+    except Exception as e:
+        report.crash("Cooking system failed", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+
+    # ====================================================================
+    # PHASE 14: Environmental Puzzles
+    # ====================================================================
+    print("\n--- PHASE 14: Environmental Puzzles ---")
+    try:
+        # Use fresh references
+        game_state = engine.game_state
+        player = game_state.session.player_character
+        puzzle_loc = engine.get_current_location()
+        player.current_location_id = puzzle_loc.id
+
+        # Create a puzzle
+        puzzle_feature = engine.create_puzzle_feature(puzzle_loc)
+        report.action(f"Created puzzle: {puzzle_feature.name} (type: {puzzle_feature.metadata.get('puzzle_type')})")
+        report.observe(f"Puzzle metadata: solved={puzzle_feature.metadata.get('solved')}, "
+                      f"accepted={puzzle_feature.metadata.get('accepted_item_types')}, "
+                      f"hint={puzzle_feature.metadata.get('solution_hint')}")
+
+        # Verify reward was created
+        reward_id_str = puzzle_feature.metadata.get("reward_item_id")
+        if reward_id_str:
+            reward_item = game_state.items.get(UUID(reward_id_str))
+            if reward_item:
+                report.observe(f"Puzzle reward: {reward_item.name} (rarity: {reward_item.rarity.value})")
+            else:
+                report.bug("Missing puzzle reward", f"Reward item {reward_id_str} not in game_state.items")
+        else:
+            report.bug("No reward_item_id", "Puzzle metadata missing reward_item_id")
+
+        # Try solving with wrong item type (BOOK is never in any puzzle's accepted types)
+        wrong_item = Item(name="Test Old Book", description="A dusty tome.", item_type=ItemType.BOOK, value=1)
+        game_state.items[wrong_item.id] = wrong_item
+        player.inventory.append(wrong_item.id)
+        success_wrong, msg_wrong = engine.attempt_solve_puzzle(puzzle_feature, wrong_item)
+        report.action(f"Wrong item: success={success_wrong}, msg={msg_wrong[:80]}")
+        if not success_wrong:
+            report.observe("Wrong item type correctly rejected — OK")
+        else:
+            report.bug("Puzzle accepted wrong item", f"Book item should not solve puzzle")
+
+        # Solve with correct item type
+        accepted_types = puzzle_feature.metadata.get("accepted_item_types", [])
+        solve_item = None
+        if "material" in accepted_types:
+            solve_item = Item(name="Test Stone", description="A stone.", item_type=ItemType.MATERIAL, value=1)
+        elif "consumable" in accepted_types:
+            solve_item = Item(name="Test Berry", description="A berry.", item_type=ItemType.CONSUMABLE, consumable=True, value=1)
+        elif "tool" in accepted_types:
+            solve_item = Item(name="Test Rope", description="A rope.", item_type=ItemType.TOOL, value=1)
+        elif "weapon" in accepted_types:
+            solve_item = Item(name="Test Blade", description="A blade.", item_type=ItemType.WEAPON, value=5)
+
+        if solve_item:
+            game_state.items[solve_item.id] = solve_item
+            player.inventory.append(solve_item.id)
+            old_gold = player.currency.get("gold", 0)
+            old_xp = player.experience
+
+            success_right, msg_right = engine.attempt_solve_puzzle(puzzle_feature, solve_item)
+            report.action(f"Correct item: success={success_right}, msg={msg_right[:120]}")
+
+            if success_right:
+                report.observe("Puzzle solved successfully — OK")
+                if puzzle_feature.metadata.get("solved"):
+                    report.observe("Puzzle marked as solved — OK")
+                else:
+                    report.bug("Puzzle not marked solved", "metadata['solved'] still False after success")
+
+                new_gold = player.currency.get("gold", 0)
+                if new_gold > old_gold:
+                    report.observe(f"Gold reward: {old_gold} → {new_gold} — OK")
+
+                if player.experience > old_xp:
+                    report.observe(f"XP reward: {old_xp} → {player.experience} — OK")
+
+                # Check reward dropped on ground
+                reward_in_loc = any(iid == UUID(reward_id_str) for iid in puzzle_loc.items) if reward_id_str else False
+                if reward_in_loc:
+                    report.observe("Reward item on ground — OK")
+                else:
+                    report.warn("Reward item not found on location ground (may have been placed elsewhere)")
+
+                # Try solving again — should fail
+                success_again, msg_again = engine.attempt_solve_puzzle(puzzle_feature, solve_item)
+                if not success_again:
+                    report.observe("Cannot re-solve — OK")
+                else:
+                    report.bug("Puzzle re-solvable", "Solved puzzle accepted another solution")
+            else:
+                report.bug("Correct item rejected", f"Item type {solve_item.item_type.value} should be in {accepted_types}")
+        else:
+            report.warn("Could not create matching item for puzzle test")
+
+    except Exception as e:
+        report.crash("Puzzle system failed", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+
+    # ====================================================================
+    # PHASE 15: NPC Tick System
+    # ====================================================================
+    print("\n--- PHASE 15: NPC Tick System ---")
+    try:
+        game_state = engine.game_state
+        player = game_state.session.player_character
+        tick_loc = engine.get_current_location()
+        player.current_location_id = tick_loc.id
+
+        # Find a different location for the hunter to start at
+        other_loc_id = None
+        for lid in game_state.locations:
+            if lid != tick_loc.id:
+                other_loc_id = lid
+                break
+
+        # -- Test 1: Hunter tracks and attacks --
+        hunter = NPC(
+            name="Test Assassin",
+            description="A shadowy figure.",
+            role=NPCRole.COMMONER,
+            current_location_id=other_loc_id or tick_loc.id,
+            home_location_id=other_loc_id or tick_loc.id,
+            mood=0.0,
+            goal=NPCGoal.ATTACK_PLAYER,
+            max_ticks=20,
+            level=1,
+        )
+        hunter.base_stats = hunter.stats.model_copy()
+        game_state.characters[hunter.id] = hunter
+        report.action(f"Spawned hunter at different location (goal=ATTACK_PLAYER)")
+
+        engine._tick_npcs()
+        if hunter.current_location_id == player.current_location_id:
+            report.observe("Hunter tracked player — OK")
+        else:
+            report.bug("Hunter didn't track", "Hunter should move to player location on tick")
+
+        # Tick again — should initiate combat
+        engine.in_combat = False
+        engine.combat_opponents = []
+        engine._tick_npcs()
+        if engine.in_combat and engine.combat_opponents and engine.combat_opponents[0].id == hunter.id:
+            report.observe("Hunter initiated combat — OK")
+        else:
+            report.bug("Hunter didn't attack", f"in_combat={engine.in_combat}, opponents={engine.combat_opponents}")
+
+        # Clean up
+        engine.in_combat = False
+        engine.combat_opponents = []
+        if hunter.id in game_state.characters:
+            del game_state.characters[hunter.id]
+        engine.pending_messages.clear()
+
+        # -- Test 2: Messenger delivers and despawns --
+        messenger = NPC(
+            name="Mysterious Courier",
+            description="A cloaked messenger.",
+            role=NPCRole.COMMONER,
+            current_location_id=other_loc_id or tick_loc.id,
+            home_location_id=other_loc_id or tick_loc.id,
+            mood=0.5,
+            goal=NPCGoal.DELIVER_MESSAGE,
+            goal_data={"message": "The dark lord sends his regards."},
+            is_transient=True,
+            level=1,
+        )
+        messenger.base_stats = messenger.stats.model_copy()
+        game_state.characters[messenger.id] = messenger
+        messenger_id = messenger.id
+        report.action("Spawned transient messenger")
+
+        # Tick 1: messenger moves to player
+        engine._tick_npcs()
+        if messenger.current_location_id == player.current_location_id:
+            report.observe("Messenger approached player — OK")
+        else:
+            report.bug("Messenger didn't move", "Should approach player location")
+
+        # Tick 2: delivers message
+        engine._tick_npcs()
+        msg_delivered = any("dark lord" in m for m in engine.pending_messages)
+        if msg_delivered:
+            report.observe("Message delivered — OK")
+        else:
+            report.bug("Message not delivered", f"pending_messages: {engine.pending_messages}")
+
+        # Tick 3: despawns
+        engine._tick_npcs()
+        if messenger_id not in game_state.characters:
+            report.observe("Transient messenger despawned — OK")
+        else:
+            report.bug("Messenger not despawned", "Transient NPC should despawn after delivering message")
+
+        engine.pending_messages.clear()
+
+        # -- Test 3: Follower moves with player --
+        follower = NPC(
+            name="Loyal Squire",
+            description="A young follower.",
+            role=NPCRole.COMPANION,
+            current_location_id=tick_loc.id,
+            home_location_id=tick_loc.id,
+            mood=0.9,
+            goal=NPCGoal.FOLLOW_PLAYER,
+            level=1,
+        )
+        follower.base_stats = follower.stats.model_copy()
+        game_state.characters[follower.id] = follower
+
+        # Move player to different location
+        if other_loc_id:
+            player.current_location_id = other_loc_id
+            engine._tick_npcs()
+            if follower.current_location_id == other_loc_id:
+                report.observe("Follower moved with player — OK")
+            else:
+                report.bug("Follower didn't follow", "Should match player location")
+            player.current_location_id = tick_loc.id
+
+        if follower.id in game_state.characters:
+            del game_state.characters[follower.id]
+        engine.pending_messages.clear()
+
+    except Exception as e:
+        report.crash("NPC tick system failed", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+
+    # ====================================================================
+    # PHASE 16: Corpse & XP System
+    # ====================================================================
+    print("\n--- PHASE 16: Corpse & XP ---")
+    try:
+        game_state = engine.game_state
+        player = game_state.session.player_character
+        corpse_loc = engine.get_current_location()
+        player.current_location_id = corpse_loc.id
+
+        # Create a test enemy with inventory
+        enemy_item = Item(name="Dark Blade", description="A wicked sword.", item_type=ItemType.WEAPON, value=30)
+        game_state.items[enemy_item.id] = enemy_item
+
+        test_enemy = NPC(
+            name="Test Bandit",
+            description="A rough-looking thug.",
+            role=NPCRole.COMMONER,
+            current_location_id=corpse_loc.id,
+            home_location_id=corpse_loc.id,
+            mood=0.0,
+            goal=NPCGoal.ATTACK_PLAYER,
+            level=2,
+        )
+        test_enemy.stats.health = 50
+        test_enemy.stats.max_health = 50
+        test_enemy.inventory.append(enemy_item.id)
+        test_enemy.currency["gold"] = 15
+        test_enemy.base_stats = test_enemy.stats.model_copy()
+        game_state.characters[test_enemy.id] = test_enemy
+
+        old_xp = player.experience
+        old_level = player.level
+        old_gold = player.currency.get("gold", 0)
+        features_before = len(corpse_loc.notable_features)
+
+        # Simulate killing the enemy
+        engine.handle_combat_reward(test_enemy)
+        del game_state.characters[test_enemy.id]
+
+        # Verify XP message
+        xp_msgs = [m for m in engine.pending_messages if "Gained" in m and "XP" in m]
+        if xp_msgs:
+            report.observe(f"XP message: {xp_msgs[0]} — OK")
+        else:
+            report.bug("No XP message", f"Expected 'Gained X XP' in pending_messages")
+
+        # Verify XP increased (may wrap around if level-up consumed XP)
+        leveled_up = player.level > old_level
+        if player.experience > old_xp or leveled_up:
+            if leveled_up:
+                report.observe(f"XP triggered level-up: Lvl {old_level}→{player.level}, XP now {player.experience} — OK")
+            else:
+                report.observe(f"XP increased: {old_xp} → {player.experience} — OK")
+        else:
+            report.bug("XP not increased", f"Still {player.experience}")
+
+        # Verify gold looted
+        new_gold = player.currency.get("gold", 0)
+        if new_gold > old_gold:
+            report.observe(f"Gold looted: {old_gold} → {new_gold} — OK")
+        else:
+            report.warn("No gold looted (enemy may have had 0)")
+
+        # Verify corpse created
+        corpse_features = [f for f in corpse_loc.notable_features if f.metadata.get("corpse")]
+        if corpse_features:
+            corpse = corpse_features[-1]
+            report.observe(f"Corpse created: {corpse.name} — OK")
+            if corpse.contained_items:
+                report.observe(f"Corpse has {len(corpse.contained_items)} lootable item(s) — OK")
+            else:
+                report.bug("Empty corpse", "Corpse should contain enemy's inventory")
+        else:
+            report.bug("No corpse", "NotableFeature with corpse metadata not created")
+
+        engine.pending_messages.clear()
+
+    except Exception as e:
+        report.crash("Corpse/XP system failed", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+
+    # ====================================================================
+    # PHASE 17: DM Effects System
+    # ====================================================================
+    print("\n--- PHASE 17: DM Effects System ---")
+    try:
+        game_state = engine.game_state
+        player = game_state.session.player_character
+        dm_loc = engine.get_current_location()
+        player.current_location_id = dm_loc.id
+        engine.pending_messages.clear()
+
+        # Damage the player so heal has room to work
+        player.stats.health = max(1, player.stats.health - 50)
+        old_health = player.stats.health
+        old_gold = player.currency.get("gold", 0)
+        old_hour = game_state.session.game_time.hour
+        old_items_count = len(dm_loc.items)
+        old_features_count = len(dm_loc.notable_features)
+
+        # Run DM command
+        context = engine.build_context_for_ai()
+        narrative = await engine.process_ai_command("rest by the fire", context, model)
+        report.action(f"DM command result: {narrative[:80]}")
+
+        if narrative and len(narrative) > 5:
+            report.observe("Narrative returned — OK")
+        else:
+            report.bug("No narrative", f"Got: '{narrative}'")
+
+        # Verify heal
+        if player.stats.health > old_health:
+            report.observe(f"Heal applied: {old_health} → {player.stats.health} — OK")
+        else:
+            report.bug("Heal not applied", f"Health still {player.stats.health}")
+
+        # Verify time advanced
+        new_hour = game_state.session.game_time.hour
+        if new_hour != old_hour:
+            report.observe(f"Time advanced: hour {old_hour} → {new_hour} — OK")
+        else:
+            report.bug("Time not advanced", "Hour unchanged")
+
+        # Verify gold given
+        new_gold = player.currency.get("gold", 0)
+        if new_gold > old_gold:
+            report.observe(f"Gold given: {old_gold} → {new_gold} — OK")
+        else:
+            report.bug("Gold not given", f"Still {new_gold}")
+
+        # Verify item spawned
+        if len(dm_loc.items) > old_items_count:
+            new_item_id = dm_loc.items[-1]
+            new_item = game_state.items.get(new_item_id)
+            if new_item:
+                report.observe(f"Item spawned: {new_item.name} — OK")
+            else:
+                report.bug("Spawned item not in game_state", str(new_item_id))
+        else:
+            report.bug("No item spawned", "Location items unchanged")
+
+        # Verify feature added
+        if len(dm_loc.notable_features) > old_features_count:
+            new_feat = dm_loc.notable_features[-1]
+            report.observe(f"Feature added: {new_feat.name} — OK")
+        else:
+            report.bug("No feature added", "Notable features unchanged")
+
+        # Verify DM messages in pending
+        dm_msgs = [m for m in engine.pending_messages if m.startswith("DM:")]
+        report.observe(f"DM effect messages: {len(dm_msgs)}")
+
+        engine.pending_messages.clear()
+
+        # --- Guardrail tests ---
+        # Damage can't kill
+        player.stats.health = 5
+        engine._apply_ai_effect({"type": "damage", "amount": 9999})
+        if player.stats.health >= 1:
+            report.observe(f"Damage guardrail: HP={player.stats.health} (min 1) — OK")
+        else:
+            report.bug("Damage killed player", f"HP={player.stats.health}")
+
+        # Gold cap
+        old_gold = player.currency.get("gold", 0)
+        engine._apply_ai_effect({"type": "give_gold", "amount": 9999})
+        gained = player.currency.get("gold", 0) - old_gold
+        if gained <= 50:
+            report.observe(f"Gold cap: gained {gained} (max 50) — OK")
+        else:
+            report.bug("Gold cap exceeded", f"Gained {gained}")
+
+        # Invalid effect type
+        result = engine._apply_ai_effect({"type": "fly_to_moon"})
+        if result is None:
+            report.observe("Invalid effect ignored — OK")
+        else:
+            report.bug("Invalid effect not ignored", f"Got: {result}")
+
+        # Restore health for subsequent phases
+        player.stats.health = player.stats.max_health
+
+    except Exception as e:
+        report.crash("DM effects failed", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+
+    # ====================================================================
+    # PHASE 18: Code-level bug detection (static checks)
+    # ====================================================================
+    print("\n--- PHASE 18: Static Analysis ---")
 
     # Check for get_item_lore method (referenced in cli.py but might not exist)
     if not hasattr(engine, 'get_item_lore'):
