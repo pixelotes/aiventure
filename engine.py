@@ -264,6 +264,26 @@ class GameEngine:
         "max_effects": 5,
     }
 
+    # Hunt & Forage tables: terrain -> (success_chance, [(item_name, weight), ...])
+    HUNT_TABLE = {
+        "forest": (0.70, [("Raw Meat", 5), ("Fresh Fish", 1)]),
+        "meadow": (0.65, [("Raw Meat", 4)]),
+        "mountain": (0.50, [("Raw Meat", 3)]),
+        "clearing": (0.60, [("Raw Meat", 4)]),
+        "river": (0.75, [("Fresh Fish", 5)]),
+    }
+    FORAGE_TABLE = {
+        "forest": (0.85, [("Wild Berries", 3), ("Forest Mushrooms", 4), ("Healing Herbs", 2)]),
+        "meadow": (0.80, [("Wild Berries", 4), ("Healing Herbs", 3), ("Honeycomb", 1)]),
+        "mountain": (0.60, [("Mountain Root", 4), ("Spicy Peppers", 2)]),
+        "clearing": (0.80, [("Wild Berries", 3), ("Honeycomb", 2), ("Healing Herbs", 2)]),
+        "river": (0.75, [("Healing Herbs", 3), ("Fresh Fish", 2)]),
+    }
+    HUNT_STAMINA_COST = 15
+    HUNT_TIME_MINUTES = 30
+    FORAGE_STAMINA_COST = 8
+    FORAGE_TIME_MINUTES = 15
+
     PUZZLE_TYPES = [
         {
             "type": "offering",
@@ -1528,6 +1548,110 @@ class GameEngine:
         except (ValueError, TypeError, KeyError) as e:
             llm_logger.warning(f"Invalid AI effect {effect_type}: {e}")
         return None
+
+    def hunt(self) -> Tuple[bool, str]:
+        """Hunt for game at the current location. Deterministic, no AI."""
+        player = self.game_state.session.player_character
+        loc = self.get_current_location()
+        terrain = getattr(loc, 'general_type', None)
+        terrain_key = terrain.value if terrain else None
+
+        if terrain_key not in self.HUNT_TABLE:
+            return False, "There's nothing to hunt here."
+        if player.stats.stamina < self.HUNT_STAMINA_COST:
+            return False, "You're too tired to hunt."
+
+        player.stats.stamina -= self.HUNT_STAMINA_COST
+        self.game_state.session.game_time.advance_time(self.HUNT_TIME_MINUTES)
+
+        chance, loot_table = self.HUNT_TABLE[terrain_key]
+        if random.random() > chance:
+            return True, "You spent time tracking game but found nothing."
+
+        names, weights = zip(*loot_table)
+        chosen = random.choices(names, weights=weights, k=1)[0]
+        item = self._create_catalog_item(chosen)
+        if item:
+            player.inventory.append(item.id)
+            return True, f"You hunted successfully and obtained {chosen}!"
+        return True, "You caught something but couldn't carry it."
+
+    def forage(self) -> Tuple[bool, str]:
+        """Forage for plants and herbs at the current location. Deterministic, no AI."""
+        player = self.game_state.session.player_character
+        loc = self.get_current_location()
+        terrain = getattr(loc, 'general_type', None)
+        terrain_key = terrain.value if terrain else None
+
+        if terrain_key not in self.FORAGE_TABLE:
+            return False, "There's nothing to forage here."
+        if player.stats.stamina < self.FORAGE_STAMINA_COST:
+            return False, "You're too tired to forage."
+
+        player.stats.stamina -= self.FORAGE_STAMINA_COST
+        self.game_state.session.game_time.advance_time(self.FORAGE_TIME_MINUTES)
+
+        chance, loot_table = self.FORAGE_TABLE[terrain_key]
+        if random.random() > chance:
+            return True, "You searched the area but found nothing useful."
+
+        names, weights = zip(*loot_table)
+        chosen = random.choices(names, weights=weights, k=1)[0]
+        item = self._create_catalog_item(chosen)
+        if item:
+            player.inventory.append(item.id)
+            return True, f"You foraged successfully and found {chosen}!"
+        return True, "You found something but couldn't carry it."
+
+    def roll_examine_surprise(self, feature: NotableFeature) -> Optional[str]:
+        """Roll for a surprise event when examining a feature. Returns message or None."""
+        if feature.metadata.get("examined") or feature.metadata.get("puzzle") or \
+           feature.metadata.get("campfire") or feature.metadata.get("corpse") or \
+           feature.metadata.get("surprise_event"):
+            return None
+
+        feature.metadata["examined"] = True
+
+        if random.random() > 0.20:
+            return None
+
+        player = self.game_state.session.player_character
+        loc = self.get_current_location()
+        feature.metadata["surprise_event"] = True
+
+        roll = random.random()
+        if roll < 0.35:
+            gold = random.randint(5, 25)
+            player.currency["gold"] = player.currency.get("gold", 0) + gold
+            return f"DISCOVERY: Hidden among the {feature.name}, you find a small pouch containing {gold} gold!"
+        elif roll < 0.65:
+            reward = self._create_puzzle_reward()
+            loc.items.append(reward.id)
+            return f"DISCOVERY: Something glints inside the {feature.name} — it's a {reward.name}!"
+        elif roll < 0.85:
+            damage = random.randint(5, 15)
+            actual = min(damage, player.stats.health - 1)
+            if actual > 0:
+                player.stats.health -= actual
+                return f"DANGER: A hidden trap springs from the {feature.name}! You take {actual} damage."
+            return None
+        else:
+            ambusher_names = ["Lurking Bandit", "Shadow Stalker", "Hidden Predator", "Cave Lurker"]
+            name = random.choice(ambusher_names)
+            ambusher = NPC(
+                name=name,
+                description=f"A hostile figure that was hiding near the {feature.name}.",
+                role=NPCRole.COMMONER,
+                current_location_id=loc.id, home_location_id=loc.id,
+                mood=0.0, goal=NPCGoal.ATTACK_PLAYER, max_ticks=10,
+                level=max(1, player.level + random.randint(-1, 1)),
+            )
+            ambusher.stats.health = 30 + (ambusher.level * 10)
+            ambusher.stats.max_health = ambusher.stats.health
+            ambusher.stats.strength = 8 + ambusher.level
+            ambusher.base_stats = ambusher.stats.model_copy()
+            self.game_state.characters[ambusher.id] = ambusher
+            return f"DANGER: {name} was hiding near the {feature.name} and leaps out to attack!"
 
     def _update_npc_positions(self) -> None:
         """Move NPCs based on the time of day"""

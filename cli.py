@@ -96,6 +96,8 @@ class GameCLI:
         self.registry.register(["shop"], self.handle_shop, "Browse a shopkeeper's wares")
         self.registry.register(["enter"], self.handle_enter, "Enter a building")
         self.registry.register(["cook"], self.handle_cook, "Cook ingredients at a campfire")
+        self.registry.register(["hunt"], self.handle_hunt, "Hunt for game in the wilderness")
+        self.registry.register(["forage"], self.handle_forage, "Forage for plants and herbs")
         self.registry.register(["save"], self.save_game, "Save your progress")
         self.registry.register(["load"], self.load_game, "Load a saved game")
         self.registry.register(["ai"], self.handle_ai_command, "Execute a free-form AI action")
@@ -599,6 +601,12 @@ class GameCLI:
             if not feature.detailed_description:
                 feature.detailed_description = await self.handle_ai_command(f"Describe the {feature.name} in detail.", print_response=False)
             print(f"\n🎭 {feature.detailed_description}")
+            surprise_msg = self.engine.roll_examine_surprise(feature)
+            if surprise_msg:
+                if surprise_msg.startswith("DANGER:"):
+                    print(f"\n{Colors.RED}{Colors.BOLD}⚔️  {surprise_msg}{Colors.ENDC}")
+                elif surprise_msg.startswith("DISCOVERY:"):
+                    print(f"\n{Colors.CYAN}{Colors.BOLD}🔍 {surprise_msg}{Colors.ENDC}")
             if feature.metadata.get("puzzle"):
                 if feature.metadata.get("solved"):
                     print(f"{Colors.GREEN}(Solved){Colors.ENDC}")
@@ -875,6 +883,16 @@ class GameCLI:
                 if await self.engine.load_game(files[int(c)-1]): await self.display_location()
             else: print("Invalid selection.")
         except Exception as e: print(f"Load failed: {e}")
+
+    async def handle_hunt(self, args: str):
+        success, msg = self.engine.hunt()
+        emoji = '🏹' if 'successfully' in msg else '🌿'
+        print(f"\n{emoji} {msg}")
+
+    async def handle_forage(self, args: str):
+        success, msg = self.engine.forage()
+        emoji = '🌿' if 'successfully' in msg else '🍂'
+        print(f"\n{emoji} {msg}")
 
     async def handle_ai_command(self, command: str, target_npc: Optional[NPC] = None, print_response: bool = True) -> Optional[str]:
         if not self.engine.game_state: return None

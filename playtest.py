@@ -17,7 +17,7 @@ from ai_provider import AIProvider
 from engine import GameEngine
 from models import (
     Direction, CharacterType, QuestStatus, ItemType, NPC, NPCGoal,
-    LocationType, GeneralLocation, NotableFeature, Item, NPCRole
+    LocationType, GeneralLocation, GeneralLocationType, NotableFeature, Item, NPCRole
 )
 
 # ============================================================================
@@ -1213,9 +1213,249 @@ async def run_playtest():
         report.crash("DM effects failed", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
 
     # ====================================================================
-    # PHASE 18: Code-level bug detection (static checks)
+    # PHASE 19: Hunt & Forage
     # ====================================================================
-    print("\n--- PHASE 18: Static Analysis ---")
+    print("\n--- PHASE 19: Hunt & Forage ---")
+    try:
+        game_state = engine.game_state
+        player = game_state.session.player_character
+
+        # Find a GeneralLocation (not a building) from the locations dict
+        hunt_loc = None
+        for loc_obj in game_state.locations.values():
+            if isinstance(loc_obj, GeneralLocation):
+                hunt_loc = loc_obj
+                break
+        if not hunt_loc:
+            report.bug("No GeneralLocation found for hunt test", "Need a GeneralLocation to set terrain")
+            raise Exception("No GeneralLocation")
+        hunt_loc.general_type = GeneralLocationType.FOREST
+        player.current_location_id = hunt_loc.id
+        report.action(f"Set location to forest type for hunting tests")
+
+        # Test hunt — should cost stamina and advance time
+        player.stats.stamina = player.stats.max_stamina
+        old_stamina = player.stats.stamina
+        old_hour = game_state.session.game_time.hour
+        old_inv_size = len(player.inventory)
+
+        # Run hunt multiple times to get at least one success
+        hunt_success = False
+        for _ in range(20):
+            player.stats.stamina = player.stats.max_stamina
+            success, msg = engine.hunt()
+            if success and "obtained" in msg:
+                hunt_success = True
+                break
+
+        if hunt_success:
+            report.action(f"Hunt success: {msg}")
+            if len(player.inventory) <= old_inv_size:
+                report.bug("Hunt didn't add item to inventory", f"Inventory size unchanged after successful hunt")
+        else:
+            report.warning("Hunt never succeeded in 20 attempts (possible but unlikely at 70% chance)")
+
+        # Verify stamina cost
+        player.stats.stamina = player.stats.max_stamina
+        engine.hunt()
+        stamina_after = player.stats.stamina
+        expected = player.stats.max_stamina - engine.HUNT_STAMINA_COST
+        if stamina_after != expected:
+            report.bug("Hunt stamina cost wrong", f"Expected {expected}, got {stamina_after}")
+        else:
+            report.action(f"Hunt stamina cost correct: {engine.HUNT_STAMINA_COST}")
+
+        # Test forage
+        player.stats.stamina = player.stats.max_stamina
+        forage_success = False
+        for _ in range(20):
+            player.stats.stamina = player.stats.max_stamina
+            success, msg = engine.forage()
+            if success and "found" in msg:
+                forage_success = True
+                break
+
+        if forage_success:
+            report.action(f"Forage success: {msg}")
+        else:
+            report.warning("Forage never succeeded in 20 attempts (possible but unlikely at 85% chance)")
+
+        # Verify forage stamina cost
+        player.stats.stamina = player.stats.max_stamina
+        engine.forage()
+        stamina_after = player.stats.stamina
+        expected = player.stats.max_stamina - engine.FORAGE_STAMINA_COST
+        if stamina_after != expected:
+            report.bug("Forage stamina cost wrong", f"Expected {expected}, got {stamina_after}")
+        else:
+            report.action(f"Forage stamina cost correct: {engine.FORAGE_STAMINA_COST}")
+
+        # Test invalid terrain — city location should reject hunt/forage
+        hunt_loc.general_type = GeneralLocationType.CITY_CENTER
+        success, msg = engine.hunt()
+        if success:
+            report.bug("Hunt succeeded in city", "Should return False for city terrain")
+        else:
+            report.action(f"Hunt correctly rejected in city: {msg}")
+        success, msg = engine.forage()
+        if success:
+            report.bug("Forage succeeded in city", "Should return False for city terrain")
+        else:
+            report.action(f"Forage correctly rejected in city: {msg}")
+
+        # Test insufficient stamina
+        hunt_loc.general_type = GeneralLocationType.FOREST
+        player.stats.stamina = 0
+        success, msg = engine.hunt()
+        if success:
+            report.bug("Hunt succeeded with 0 stamina", "Should reject when too tired")
+        else:
+            report.action(f"Hunt correctly rejected with no stamina: {msg}")
+        success, msg = engine.forage()
+        if success:
+            report.bug("Forage succeeded with 0 stamina", "Should reject when too tired")
+        else:
+            report.action(f"Forage correctly rejected with no stamina: {msg}")
+
+        # Restore
+        player.stats.stamina = player.stats.max_stamina
+        hunt_loc.general_type = GeneralLocationType.FOREST
+
+    except Exception as e:
+        report.crash("Hunt/forage failed", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+
+    # ====================================================================
+    # PHASE 20: Surprise Examine Events
+    # ====================================================================
+    print("\n--- PHASE 20: Surprise Examine Events ---")
+    try:
+        game_state = engine.game_state
+        player = game_state.session.player_character
+        loc = engine.get_current_location()
+        player.stats.health = player.stats.max_health
+
+        # Create a plain feature (no special metadata)
+        plain_feature = NotableFeature(
+            name="Mysterious Stone Pillar",
+            detailed_description="A weathered stone pillar covered in moss.",
+            metadata={},
+        )
+        loc.notable_features.append(plain_feature)
+
+        # Roll for surprise until we get one (force many attempts)
+        got_surprise = False
+        old_gold = player.currency.get("gold", 0)
+        old_health = player.stats.health
+        old_items = len(loc.items)
+        old_chars = len(game_state.characters)
+
+        for attempt in range(200):
+            # Reset the feature for each attempt
+            test_feature = NotableFeature(
+                name=f"Test Pillar {attempt}",
+                detailed_description="A weathered stone pillar.",
+                metadata={},
+            )
+            result = engine.roll_examine_surprise(test_feature)
+            if result:
+                got_surprise = True
+                report.action(f"Surprise triggered on attempt {attempt + 1}: {result[:80]}...")
+                # Verify feature got marked
+                if not test_feature.metadata.get("examined"):
+                    report.bug("Feature not marked as examined", "metadata['examined'] should be True")
+                if not test_feature.metadata.get("surprise_event"):
+                    report.bug("Feature not marked with surprise_event", "metadata['surprise_event'] should be True")
+                break
+            # Even without surprise, examined should be set
+            if not test_feature.metadata.get("examined"):
+                report.bug("Feature not marked examined on no-surprise", "metadata['examined'] should be True even without surprise")
+                break
+
+        if not got_surprise:
+            report.warning("No surprise event in 200 attempts (extremely unlikely at 20% chance)")
+
+        # Verify special features are skipped
+        puzzle_feature = NotableFeature(name="Puzzle", metadata={"puzzle": True})
+        campfire_feature = NotableFeature(name="Campfire", metadata={"campfire": True})
+        corpse_feature = NotableFeature(name="Corpse", metadata={"corpse": True})
+        already_examined = NotableFeature(name="Old", metadata={"examined": True})
+
+        for feat, label in [(puzzle_feature, "puzzle"), (campfire_feature, "campfire"),
+                            (corpse_feature, "corpse"), (already_examined, "already examined")]:
+            result = engine.roll_examine_surprise(feat)
+            if result is not None:
+                report.bug(f"Surprise triggered on {label} feature", "Special features should be skipped")
+            else:
+                report.action(f"Surprise correctly skipped {label} feature")
+
+        # Test each event type by checking state changes across many rolls
+        gold_event = False
+        item_event = False
+        trap_event = False
+        ambush_event = False
+
+        for i in range(500):
+            f = NotableFeature(name=f"Barrel {i}", detailed_description="Old barrel.", metadata={})
+            player.stats.health = player.stats.max_health
+            pre_gold = player.currency.get("gold", 0)
+            pre_items = len(loc.items)
+            pre_chars = len(game_state.characters)
+            pre_health = player.stats.health
+
+            result = engine.roll_examine_surprise(f)
+            if not result:
+                continue
+
+            if "gold" in result.lower():
+                gold_event = True
+                if player.currency.get("gold", 0) <= pre_gold:
+                    report.bug("Gold event didn't add gold", result)
+            elif "glints" in result.lower() or "it's a" in result.lower():
+                item_event = True
+                if len(loc.items) <= pre_items:
+                    report.bug("Item event didn't add item", result)
+            elif "trap" in result.lower():
+                trap_event = True
+                if player.stats.health >= pre_health:
+                    report.bug("Trap didn't deal damage", result)
+                if player.stats.health < 1:
+                    report.bug("Trap killed the player", "Health should never go below 1")
+            elif "leaps out" in result.lower() or "attack" in result.lower():
+                ambush_event = True
+                if len(game_state.characters) <= pre_chars:
+                    report.bug("Ambush didn't spawn NPC", result)
+
+            if gold_event and item_event and trap_event and ambush_event:
+                break
+
+        for event_name, triggered in [("gold", gold_event), ("item", item_event),
+                                       ("trap", trap_event), ("ambush", ambush_event)]:
+            if triggered:
+                report.action(f"Surprise {event_name} event verified")
+            else:
+                report.warning(f"Surprise {event_name} event never triggered in 500 rolls")
+
+        # Verify trap can't kill — set health to 1
+        player.stats.health = 1
+        for i in range(500):
+            f = NotableFeature(name=f"Danger {i}", metadata={})
+            engine.roll_examine_surprise(f)
+            if player.stats.health < 1:
+                report.bug("Trap killed player at 1 HP", f"Health dropped to {player.stats.health}")
+                break
+        if player.stats.health >= 1:
+            report.action("Trap correctly cannot kill player (tested at 1 HP)")
+
+        # Restore health
+        player.stats.health = player.stats.max_health
+
+    except Exception as e:
+        report.crash("Surprise examine failed", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+
+    # ====================================================================
+    # PHASE 21: Code-level bug detection (static checks)
+    # ====================================================================
+    print("\n--- PHASE 21: Static Analysis ---")
 
     # Check for get_item_lore method (referenced in cli.py but might not exist)
     if not hasattr(engine, 'get_item_lore'):
