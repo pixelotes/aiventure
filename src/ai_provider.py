@@ -48,16 +48,16 @@ class LMStudioProvider(AIProvider):
     async def generate_response(self, prompt: str, context: str = "", is_content_generation: bool = False, model_name: Optional[str] = None) -> str:
         try:
             active_model = model_name or self.model
-            
+
             messages = []
             if context:
                 messages.append({"role": "system", "content": f"Context: {context}"})
-            
+
             if is_content_generation:
                 messages.append({"role": "system", "content": "You are a content generator. You MUST respond with ONLY valid JSON."})
             else:
                 messages.append({"role": "system", "content": "You are an AI narrator and NPC. Keep responses to 1-2 sentences. Never describe the player's actions or speak for the player character."})
-            
+
             messages.append({"role": "user", "content": prompt})
 
             json_payload = {
@@ -72,12 +72,12 @@ class LMStudioProvider(AIProvider):
             response = await self.client.post(f"{self.url}/v1/chat/completions", json=json_payload, timeout=self.timeout)
             response.raise_for_status()
             result = response.json()
-            
+
             if "choices" in result and len(result["choices"]) > 0:
                 content = result["choices"][0]["message"]["content"]
                 return content
             return "The AI is silent."
-            
+
         except httpx.HTTPStatusError as e:
             error_msg = f"API Error: {e.response.status_code} - {e.response.text}"
             llm_logger.error(error_msg)

@@ -1,7 +1,9 @@
 from __future__ import annotations
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
 import asyncio
 import logging
-import sys
 import random
 import difflib
 import inspect

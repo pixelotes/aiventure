@@ -3,11 +3,12 @@
 Web Terminal Server for AIventure
 Runs the terminal app through a web interface using websockets.
 """
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
 import asyncio
 import json
-import os
 import signal
-import sys
 import threading
 import time
 import shutil
