@@ -12,17 +12,11 @@ ollama:
   model: qwen3:0.6b
   timeout: 600
 
-# The app listens on two ports (hardcoded in web_terminal.py):
-#   8080 — HTTP UI
-#   8765 — WebSocket (the browser connects directly to this from index.html)
+# Single port serves both HTTP (UI) and the WebSocket (path /ws).
 service:
   type: ClusterIP
-  httpPort: 8080
-  wsPort: 8765
+  port: 8080
 
-# Ingress for the HTTP UI only. The WebSocket port (8765) needs separate routing
-# (e.g. `kubectl port-forward svc/aiventure 8765:8765`) because the client
-# hardcodes the port in `ws://${hostname}:8765`.
 ingress:
   enabled: false
   className: traefik

@@ -275,7 +275,7 @@
 
             connect() {
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${window.location.hostname}:8765`;
+                const wsUrl = `${protocol}//${window.location.host}/ws`;
 
                 this.updateStatus('connecting', 'Connecting...');
 

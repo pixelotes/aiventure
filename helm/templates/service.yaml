@@ -9,8 +9,5 @@ spec:
     app: aiventure
   ports:
     - name: http
-      port: {{ .Values.service.httpPort }}
+      port: {{ .Values.service.port }}
       targetPort: http
-    - name: ws
-      port: {{ .Values.service.wsPort }}
-      targetPort: ws
