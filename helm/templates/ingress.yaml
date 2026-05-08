@@ -18,5 +18,5 @@ spec:
               service:
                 name: aiventure
                 port:
-                  number: {{ .Values.service.httpPort }}
+                  number: {{ .Values.service.port }}
 {{- end }}

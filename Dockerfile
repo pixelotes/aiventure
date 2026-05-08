@@ -17,8 +17,7 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p saves stories logs
 
-# Expose port
-EXPOSE 8000
+# HTTP UI + WebSocket on same port (WS path: /ws)
+EXPOSE 8080
 
-# Default command
 CMD ["python", "./web_terminal.py"]
